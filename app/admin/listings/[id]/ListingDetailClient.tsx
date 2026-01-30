@@ -284,7 +284,14 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
                 <div>
                   <p className="text-xs text-gray-500">Created</p>
                   <p className="font-medium text-gray-900">
-                    {new Date(listing.created_at as string).toLocaleString()}
+                    {new Date(listing.created_at as string).toLocaleString('en-US', { 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric', 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      timeZone: 'Asia/Manila'
+                    })}
                   </p>
                 </div>
               </div>
@@ -294,7 +301,14 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
                   <div>
                     <p className="text-xs text-gray-500">Start Time</p>
                     <p className="font-medium text-gray-900">
-                      {new Date(listing.start_time).toLocaleString()}
+                      {new Date(listing.start_time).toLocaleString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        timeZone: 'Asia/Manila'
+                      })}
                     </p>
                   </div>
                 </div>
@@ -305,7 +319,14 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
                   <div>
                     <p className="text-xs text-gray-500">End Time</p>
                     <p className="font-medium text-gray-900">
-                      {new Date(listing.end_time).toLocaleString()}
+                      {new Date(listing.end_time).toLocaleString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        timeZone: 'Asia/Manila'
+                      })}
                     </p>
                   </div>
                 </div>
