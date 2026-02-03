@@ -61,7 +61,7 @@ export default function VehiclesClient({
           <ModelsTab models={initialModels} brands={initialBrands} />
         )}
         {activeTab === 'variants' && (
-          <VariantsTab variants={initialVariants} models={initialModels} />
+          <VariantsTab variants={initialVariants} models={initialModels} brands={initialBrands} />
         )}
       </div>
     </div>
