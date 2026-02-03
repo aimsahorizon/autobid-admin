@@ -195,3 +195,35 @@ export interface AdminStats {
   todaySubmissions: number
   totalRevenue: number
 }
+
+export interface VehicleBrand {
+  id: string
+  name: string
+  logo_url: string | null
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface VehicleModel {
+  id: string
+  brand_id: string
+  name: string
+  body_type: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+  vehicle_brands?: VehicleBrand
+}
+
+export interface VehicleVariant {
+  id: string
+  model_id: string
+  name: string
+  transmission: string
+  fuel_type: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+  vehicle_models?: VehicleModel
+}
