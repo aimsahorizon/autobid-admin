@@ -11,7 +11,6 @@ export interface UserFormData {
   first_name: string
   last_name: string
   middle_name?: string
-  phone_number?: string
   date_of_birth: string
   sex: 'male' | 'female'
   role_id: string | null
@@ -67,7 +66,6 @@ export async function createUser(formData: UserFormData): Promise<ActionResult> 
         first_name: formData.first_name,
         last_name: formData.last_name,
         middle_name: formData.middle_name || null,
-        phone_number: formData.phone_number || null,
         date_of_birth: formData.date_of_birth,
         sex: formData.sex,
         role_id: formData.role_id || null,
@@ -106,7 +104,6 @@ export async function updateUser(
     if (formData.first_name !== undefined) updateData.first_name = formData.first_name
     if (formData.last_name !== undefined) updateData.last_name = formData.last_name
     if (formData.middle_name !== undefined) updateData.middle_name = formData.middle_name || null
-    if (formData.phone_number !== undefined) updateData.phone_number = formData.phone_number || null
     if (formData.role_id !== undefined) updateData.role_id = formData.role_id || null
     if (formData.is_verified !== undefined) updateData.is_verified = formData.is_verified
     if (formData.is_active !== undefined) updateData.is_active = formData.is_active

@@ -52,8 +52,8 @@ async function getTransaction(id: string) {
         auction_vehicles (brand, model, year, transmission, fuel_type, mileage),
         auction_photos (photo_url, is_primary)
       ),
-      seller:users!auction_transactions_seller_id_fkey (id, full_name, email, phone_number, profile_image_url),
-      buyer:users!auction_transactions_buyer_id_fkey (id, full_name, email, phone_number, profile_image_url)
+      seller:users!auction_transactions_seller_id_fkey (id, full_name, email, profile_image_url),
+      buyer:users!auction_transactions_buyer_id_fkey (id, full_name, email, profile_image_url)
     `)
     .eq('id', id)
     .single()

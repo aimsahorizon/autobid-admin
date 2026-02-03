@@ -43,7 +43,6 @@ interface FormState {
   first_name: string
   last_name: string
   middle_name: string
-  phone_number: string
   date_of_birth: string
   sex: 'male' | 'female' | ''
   role_id: string
@@ -58,7 +57,6 @@ const initialFormState: FormState = {
   first_name: '',
   last_name: '',
   middle_name: '',
-  phone_number: '',
   date_of_birth: '',
   sex: '',
   role_id: '',
@@ -129,7 +127,6 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       middle_name: user.middle_name || '',
-      phone_number: user.phone_number || '',
       date_of_birth: user.date_of_birth || '',
       sex: (user.sex as 'male' | 'female') || '',
       role_id: user.role_id || '',
@@ -202,7 +199,6 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
       first_name: formState.first_name,
       last_name: formState.last_name,
       middle_name: formState.middle_name || undefined,
-      phone_number: formState.phone_number || undefined,
       date_of_birth: formState.date_of_birth,
       sex: formState.sex as 'male' | 'female',
       role_id: formState.role_id || null,
@@ -238,7 +234,6 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
       first_name: formState.first_name,
       last_name: formState.last_name,
       middle_name: formState.middle_name || undefined,
-      phone_number: formState.phone_number || undefined,
       role_id: formState.role_id || null,
       is_verified: formState.is_verified,
       is_active: formState.is_active,
@@ -483,12 +478,6 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                   </p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Phone</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedUser.phone_number || 'Not provided'}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Sex</p>
                   <p className="font-medium text-gray-900 capitalize">
                     {selectedUser.sex || 'Not specified'}
@@ -653,18 +642,6 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                       onChange={(e) => setFormState({ ...formState, last_name: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
                       placeholder="Doe"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={formState.phone_number}
-                      onChange={(e) => setFormState({ ...formState, phone_number: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                      placeholder="+63 912 345 6789"
                     />
                   </div>
                   <div>

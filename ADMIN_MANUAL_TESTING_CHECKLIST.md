@@ -216,7 +216,6 @@
   - [ ] First Name (required)
   - [ ] Last Name (required)
   - [ ] Middle Name (optional)
-  - [ ] Phone Number (optional)
   - [ ] Date of Birth (optional)
   - [ ] Sex (dropdown: Male/Female)
   - [ ] Role (dropdown: Buyer/Seller/Both)
@@ -225,7 +224,6 @@
 - [ ] All required fields marked with asterisk
 - [ ] Password field has show/hide toggle
 - [ ] Email validation works
-- [ ] Phone number format validation (if implemented)
 - [ ] Date picker works for DOB
 - [ ] Role dropdown populated with options
 - [ ] Is Active checked by default
@@ -247,7 +245,6 @@
 - [ ] Full name displays
 - [ ] Email displays
 - [ ] Username displays
-- [ ] Phone number displays
 - [ ] Date of birth displays
 - [ ] Sex displays
 - [ ] Role badge displays
@@ -272,7 +269,6 @@
 - [ ] Password field optional (leave blank to keep current)
 - [ ] Username editable
 - [ ] Name fields editable
-- [ ] Phone number editable
 - [ ] Date of birth editable
 - [ ] Sex dropdown editable
 - [ ] Role dropdown editable
@@ -846,15 +842,13 @@
   - [ ] Seller avatar/photo
   - [ ] Seller full name
   - [ ] Seller email
-  - [ ] Seller phone (if available)
   - [ ] Link to seller profile
 - [ ] Buyer section displays:
   - [ ] Buyer avatar/photo
   - [ ] Buyer full name
   - [ ] Buyer email
-  - [ ] Buyer phone (if available)
   - [ ] Link to buyer profile
-- [ ] Contact information clickable (email, phone)
+- [ ] Contact information clickable (email)
 
 ### 7.9 Transaction Forms Tabs
 - [ ] Tab navigation visible:
