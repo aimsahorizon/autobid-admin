@@ -31,7 +31,6 @@ async function getUsers() {
       first_name,
       last_name,
       middle_name,
-      phone_number,
       date_of_birth,
       sex,
       profile_image_url,

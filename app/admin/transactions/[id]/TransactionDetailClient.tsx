@@ -14,7 +14,6 @@ import {
   MapPin,
   CreditCard,
   Calendar,
-  Phone,
   Mail,
   MessageSquare,
   Shield,
@@ -316,12 +315,6 @@ export default function TransactionDetailClient({
                 <Mail className="w-4 h-4" />
                 {String(seller?.email || '')}
               </div>
-              {typeof seller?.phone_number === 'string' && (
-                <div className="flex items-center gap-1 text-blue-700">
-                  <Phone className="w-4 h-4" />
-                  {seller.phone_number}
-                </div>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -366,12 +359,6 @@ export default function TransactionDetailClient({
                 <Mail className="w-4 h-4" />
                 {String(buyer?.email || '')}
               </div>
-              {typeof buyer?.phone_number === 'string' && (
-                <div className="flex items-center gap-1 text-green-700">
-                  <Phone className="w-4 h-4" />
-                  {buyer.phone_number}
-                </div>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

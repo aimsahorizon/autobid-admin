@@ -18,8 +18,15 @@ import {
   Activity,
   Zap,
   RefreshCw,
+  Square,
+  CheckSquare,
+  Trash2,
+  AlertTriangle,
+  Archive
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import { bulkDeleteAuctions, deleteAllAuctions } from './actions'
+import { useRouter } from 'next/navigation'
 
 interface Bid {
   id: string
@@ -90,6 +97,7 @@ function transformAuction(auction: Record<string, unknown>): Auction {
 }
 
 export default function AuctionsClient({ initialAuctions, stats, initialBids }: AuctionsClientProps) {
+  const router = useRouter()
   const [auctions, setAuctions] = useState(initialAuctions)
   const [bids, setBids] = useState(initialBids)
   const [search, setSearch] = useState('')
@@ -97,6 +105,15 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(new Date())
+  
+  // Bulk Action State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [modalMode, setModalMode] = useState<'delete' | null>(null)
+  const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
+  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [targetAuctionForDelete, setTargetAuctionForDelete] = useState<Auction | null>(null)
 
   // Real-time countdown timer
   const [, setTick] = useState(0)
@@ -115,7 +132,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'bids' },
         async (payload) => {
-          // Fetch the complete bid with user info
           const { data: newBid } = await supabase
             .from('bids')
             .select(`
@@ -132,7 +148,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
             .single()
 
           if (newBid) {
-            // Transform the response to match our interface (Supabase returns arrays for relations)
             const transformedBid: Bid = {
               ...newBid,
               bid_statuses: Array.isArray(newBid.bid_statuses) ? newBid.bid_statuses[0] || null : newBid.bid_statuses,
@@ -141,7 +156,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
             setBids(prev => [transformedBid, ...prev])
             setLastUpdate(new Date())
 
-            // Update auction's current price
             setAuctions(prev => prev.map(a =>
               a.id === newBid.auction_id
                 ? { ...a, current_price: newBid.bid_amount, total_bids: a.total_bids + 1 }
@@ -206,6 +220,81 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
     if (filter === 'all') return matchesSearch
     return matchesSearch && auction.auction_statuses?.status_name === filter
   })
+
+  // Selection Logic
+  const toggleSelectAuction = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredAuctions.map(a => a.id)))
+    }
+  }
+
+  const openDeleteModal = (auction: Auction | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
+    if (auction) setTargetAuctionForDelete(auction)
+    setActionScope(scope)
+    setDeleteType('soft')
+    setModalMode('delete')
+    setError(null)
+  }
+
+  const closeModal = () => {
+    setModalMode(null)
+    setTargetAuctionForDelete(null)
+    setError(null)
+  }
+
+  const handleExecuteDelete = async () => {
+    setLoading(true)
+    setError(null)
+
+    let result;
+
+    try {
+      if (actionScope === 'single' && targetAuctionForDelete) {
+        result = await bulkDeleteAuctions([targetAuctionForDelete.id], deleteType)
+      } else if (actionScope === 'selected') {
+        result = await bulkDeleteAuctions(Array.from(selectedIds), deleteType)
+      } else if (actionScope === 'all') {
+        result = await deleteAllAuctions(deleteType)
+      }
+
+      if (result?.success) {
+        // Optimistic update
+        if (actionScope === 'single' && targetAuctionForDelete) {
+          if (deleteType === 'hard') {
+            setAuctions(prev => prev.filter(a => a.id !== targetAuctionForDelete.id))
+          } else {
+             // If soft delete (cancel), we might keep it but update status, or remove if filter is active
+             // For simplicity, just refresh
+             await refreshData()
+          }
+        } else {
+           await refreshData()
+        }
+        
+        setSelectedIds(new Set())
+        closeModal()
+        router.refresh()
+      } else {
+        setError(result?.error || 'Failed to delete')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    }
+
+    setLoading(false)
+  }
 
   const getVehicleName = (auction: Auction) => {
     const v = auction.auction_vehicles
@@ -310,7 +399,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters & Actions */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
@@ -338,7 +427,55 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
+             <button
+              onClick={() => openDeleteModal(null, 'all')}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors"
+              title="Delete All Auctions"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete All
+            </button>
           </div>
+        </div>
+
+        {/* Bulk Selection Bar */}
+        {selectedIds.size > 0 && (
+          <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-purple-900 font-medium">
+              <CheckSquare className="w-5 h-5 text-purple-600" />
+              {selectedIds.size} auction{selectedIds.size > 1 ? 's' : ''} selected
+            </div>
+            <div className="flex gap-2">
+               <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => openDeleteModal(null, 'selected')}
+                className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
+
+         {/* Select All Checkbox */}
+        <div className="mt-4 flex items-center gap-2">
+          <button 
+            onClick={toggleSelectAll}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+          >
+            {selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0 ? (
+              <CheckSquare className="w-4 h-4 text-purple-600" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+            Select All {filteredAuctions.length > 0 && `(${filteredAuctions.length})`}
+          </button>
         </div>
       </div>
 
@@ -359,136 +496,170 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
             return (
               <div
                 key={auction.id}
-                onClick={() => setSelectedAuction(auction)}
-                className={`bg-white rounded-xl border-2 overflow-hidden cursor-pointer transition-all hover:shadow-xl ${
+                className={`group relative bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-xl ${
                   isLive ? 'border-green-400' : 'border-gray-200'
-                } ${timeInfo.urgent && isLive ? 'ring-2 ring-red-400 ring-opacity-50' : ''}`}
+                } ${timeInfo.urgent && isLive ? 'ring-2 ring-red-400 ring-opacity-50' : ''} ${
+                    selectedIds.has(auction.id) ? 'ring-2 ring-purple-500 border-purple-500' : ''
+                }`}
               >
-                {/* Cover Photo */}
-                <div className="relative aspect-[16/9] bg-gray-100">
-                  {getPrimaryPhoto(auction.auction_photos) ? (
-                    <img
-                      src={getPrimaryPhoto(auction.auction_photos)}
-                      alt={getVehicleName(auction)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Car className="w-20 h-20 text-gray-300" />
-                    </div>
-                  )}
-
-                  {/* Status Badge Overlay */}
-                  <div className="absolute top-3 left-3">
-                    {isLive ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium">
-                        <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                        LIVE
-                      </span>
-                    ) : (
-                      <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
-                    )}
+                {/* Selection Checkbox */}
+                 <div className="absolute top-3 right-3 z-20">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleSelectAuction(auction.id)
+                      }}
+                      className="p-1 bg-white/80 rounded-full hover:bg-white transition-colors"
+                    >
+                      {selectedIds.has(auction.id) ? (
+                        <CheckSquare className="w-6 h-6 text-purple-600" />
+                      ) : (
+                        <Square className="w-6 h-6 text-gray-500 hover:text-purple-600" />
+                      )}
+                    </button>
                   </div>
 
-                  {/* Time Remaining Overlay */}
-                  {isLive && (
-                    <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-bold ${
-                      timeInfo.urgent ? 'bg-red-500 text-white animate-pulse' : 'bg-black/70 text-white'
-                    }`}>
-                      <Clock className="w-4 h-4 inline mr-1" />
-                      {timeInfo.text}
-                    </div>
-                  )}
+                {/* Clickable Area for Details */}
+                <div onClick={() => setSelectedAuction(auction)} className="cursor-pointer">
+                    {/* Cover Photo */}
+                    <div className="relative aspect-[16/9] bg-gray-100">
+                      {getPrimaryPhoto(auction.auction_photos) ? (
+                        <img
+                          src={getPrimaryPhoto(auction.auction_photos)}
+                          alt={getVehicleName(auction)}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Car className="w-20 h-20 text-gray-300" />
+                        </div>
+                      )}
 
-                  {/* Bid Count Overlay */}
-                  <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 text-white rounded-full text-sm font-medium">
-                    <Gavel className="w-4 h-4 inline mr-1" />
-                    {auction.total_bids} bids
-                  </div>
-
-                  {/* Featured Badge */}
-                  {auction.is_featured && (
-                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium">
-                      <Zap className="w-4 h-4 inline mr-1" />
-                      Featured
-                    </div>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-900 text-lg truncate">{getVehicleName(auction)}</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Seller: {auction.users?.full_name || auction.users?.email}
-                  </p>
-
-                  {/* Price Section */}
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase">Current Bid</p>
-                        <p className="text-2xl font-bold text-purple-600">
-                          ₱{auction.current_price?.toLocaleString()}
-                        </p>
+                      {/* Status Badge Overlay */}
+                      <div className="absolute top-3 left-3 z-10">
+                        {isLive ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium">
+                            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                            LIVE
+                          </span>
+                        ) : (
+                          <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500 uppercase">Starting</p>
-                        <p className="text-sm text-gray-600">₱{auction.starting_price?.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Highest Bidder */}
-                  {highestBidder && (
-                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          {highestBidder.users?.profile_image_url ? (
-                            <img
-                              src={highestBidder.users.profile_image_url}
-                              alt="Bidder"
-                              className="w-10 h-10 rounded-full object-cover border-2 border-green-400"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center border-2 border-green-400">
-                              <span className="text-sm font-bold text-green-700">
-                                {getInitials(highestBidder.users?.full_name || null, highestBidder.users?.email || 'U')}
-                              </span>
+                      {/* Time Remaining Overlay */}
+                      {isLive && (
+                        <div className={`absolute top-12 right-3 px-3 py-1 rounded-full text-sm font-bold z-10 ${
+                          timeInfo.urgent ? 'bg-red-500 text-white animate-pulse' : 'bg-black/70 text-white'
+                        }`}>
+                          <Clock className="w-4 h-4 inline mr-1" />
+                          {timeInfo.text}
+                        </div>
+                      )}
+
+                      {/* Bid Count Overlay */}
+                      <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 text-white rounded-full text-sm font-medium z-10">
+                        <Gavel className="w-4 h-4 inline mr-1" />
+                        {auction.total_bids} bids
+                      </div>
+
+                      {/* Featured Badge */}
+                      {auction.is_featured && (
+                        <div className="absolute bottom-3 left-3 px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium z-10">
+                          <Zap className="w-4 h-4 inline mr-1" />
+                          Featured
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4">
+                      <h3 className="font-bold text-gray-900 text-lg truncate">{getVehicleName(auction)}</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Seller: {auction.users?.full_name || auction.users?.email}
+                      </p>
+
+                      {/* Price Section */}
+                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500 uppercase">Current Bid</p>
+                            <p className="text-2xl font-bold text-purple-600">
+                              ₱{auction.current_price?.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500 uppercase">Starting</p>
+                            <p className="text-sm text-gray-600">₱{auction.starting_price?.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Highest Bidder */}
+                      {highestBidder && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              {highestBidder.users?.profile_image_url ? (
+                                <img
+                                  src={highestBidder.users.profile_image_url}
+                                  alt="Bidder"
+                                  className="w-10 h-10 rounded-full object-cover border-2 border-green-400"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center border-2 border-green-400">
+                                  <span className="text-sm font-bold text-green-700">
+                                    {getInitials(highestBidder.users?.full_name || null, highestBidder.users?.email || 'U')}
+                                  </span>
+                                </div>
+                              )}
+                              <Trophy className="absolute -bottom-1 -right-1 w-4 h-4 text-yellow-500" />
                             </div>
-                          )}
-                          <Trophy className="absolute -bottom-1 -right-1 w-4 h-4 text-yellow-500" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-green-600 font-medium uppercase">Highest Bidder</p>
+                              <p className="font-semibold text-gray-900 truncate">
+                                {highestBidder.users?.full_name || highestBidder.users?.email}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-600">₱{highestBidder.bid_amount.toLocaleString()}</p>
+                              {highestBidder.is_auto_bid && (
+                                <span className="text-xs text-gray-500">Auto-bid</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-green-600 font-medium uppercase">Highest Bidder</p>
-                          <p className="font-semibold text-gray-900 truncate">
-                            {highestBidder.users?.full_name || highestBidder.users?.email}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">₱{highestBidder.bid_amount.toLocaleString()}</p>
-                          {highestBidder.is_auto_bid && (
-                            <span className="text-xs text-gray-500">Auto-bid</span>
-                          )}
-                        </div>
+                      )}
+
+                      {/* Stats Row */}
+                      <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          {auction.view_count} views
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          {auctionBids.length} bidders
+                        </span>
+                        <span className="flex items-center gap-1 text-purple-600">
+                          View Details
+                          <ChevronRight className="w-4 h-4" />
+                        </span>
                       </div>
                     </div>
-                  )}
-
-                  {/* Stats Row */}
-                  <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
-                      {auction.view_count} views
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      {auctionBids.length} bidders
-                    </span>
-                    <span className="flex items-center gap-1 text-purple-600">
-                      View Details
-                      <ChevronRight className="w-4 h-4" />
-                    </span>
-                  </div>
+                </div>
+                 {/* Quick Action: Delete */}
+                <div className="absolute top-2 right-12 z-20">
+                   <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        openDeleteModal(auction, 'single')
+                    }}
+                    className="p-1 bg-white/80 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
+                    title="Delete Auction"
+                   >
+                       <Trash2 className="w-5 h-5" />
+                   </button>
                 </div>
               </div>
             )
@@ -507,6 +678,115 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
           getTimeRemaining={getTimeRemaining}
           getInitials={getInitials}
         />
+      )}
+
+       {/* Delete Confirmation Modal */}
+      {modalMode === 'delete' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {actionScope === 'all' 
+                    ? 'Delete All Auctions' 
+                    : actionScope === 'selected' 
+                      ? `Delete ${selectedIds.size} Auctions`
+                      : 'Delete Auction'}
+                </h2>
+                <p className="text-gray-500 text-sm">Select deletion method</p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-6 space-y-4">
+              {/* Deletion Type Selection */}
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                <button
+                  onClick={() => setDeleteType('soft')}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    deleteType === 'soft' 
+                      ? 'bg-white text-purple-700 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Cancel (Soft)
+                </button>
+                <button
+                  onClick={() => setDeleteType('hard')}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    deleteType === 'hard' 
+                      ? 'bg-white text-red-700 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Delete (Hard)
+                </button>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  {deleteType === 'soft' ? (
+                    <>
+                      <strong>Soft Delete</strong> will mark auctions as <strong>Cancelled</strong>. They will still exist in the database.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the auction data.
+                    </>
+                  )}
+                </p>
+
+                {deleteType === 'hard' && (
+                  <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
+                    <li>Removes auction listing</li>
+                    <li>Deletes all associated bids and photos</li>
+                    <li>This action cannot be undone</li>
+                  </ul>
+                )}
+                
+                {actionScope === 'all' && deleteType === 'hard' && (
+                   <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
+                     WARNING: You are about to wipe the entire auction database!
+                   </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeModal}
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExecuteDelete}
+                disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 ${
+                  deleteType === 'hard' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
+                }`}
+              >
+                {loading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    {deleteType === 'hard' ? <Trash2 className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                    Confirm {deleteType === 'soft' ? 'Cancel' : 'Delete'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

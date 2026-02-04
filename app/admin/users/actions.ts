@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export interface UserFormData {
@@ -11,7 +12,6 @@ export interface UserFormData {
   first_name: string
   last_name: string
   middle_name?: string
-  phone_number?: string
   date_of_birth: string
   sex: 'male' | 'female'
   role_id: string | null
@@ -67,7 +67,6 @@ export async function createUser(formData: UserFormData): Promise<ActionResult> 
         first_name: formData.first_name,
         last_name: formData.last_name,
         middle_name: formData.middle_name || null,
-        phone_number: formData.phone_number || null,
         date_of_birth: formData.date_of_birth,
         sex: formData.sex,
         role_id: formData.role_id || null,
@@ -106,7 +105,6 @@ export async function updateUser(
     if (formData.first_name !== undefined) updateData.first_name = formData.first_name
     if (formData.last_name !== undefined) updateData.last_name = formData.last_name
     if (formData.middle_name !== undefined) updateData.middle_name = formData.middle_name || null
-    if (formData.phone_number !== undefined) updateData.phone_number = formData.phone_number || null
     if (formData.role_id !== undefined) updateData.role_id = formData.role_id || null
     if (formData.is_verified !== undefined) updateData.is_verified = formData.is_verified
     if (formData.is_active !== undefined) updateData.is_active = formData.is_active
@@ -317,6 +315,95 @@ export async function toggleUserStatus(
     return { success: true, data: { [field]: newValue } }
   } catch (err) {
     console.error('Toggle status error:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error occurred' }
+  }
+}
+
+export async function bulkDeleteUsers(userIds: string[], type: 'soft' | 'hard'): Promise<ActionResult> {
+  try {
+    const supabase = createAdminClient()
+    const supabaseUser = await createClient()
+    const { data: { user: currentUser } } = await supabaseUser.auth.getUser()
+
+    // Filter out current user from deletion list to prevent self-deletion
+    const targetIds = userIds.filter(id => id !== currentUser?.id)
+
+    if (targetIds.length === 0) {
+      return { success: false, error: 'No valid users to delete' }
+    }
+
+    if (type === 'soft') {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .in('id', targetIds)
+
+      if (error) throw error
+    } else {
+      // Hard delete
+      // 1. Clear foreign keys references
+      await Promise.all([
+        supabase.from('transaction_timeline').update({ actor_id: null }).in('actor_id', targetIds),
+        supabase.from('kyc_documents').update({ reviewed_by: null }).in('reviewed_by', targetIds),
+        supabase.from('payments').update({ verified_by: null }).in('verified_by', targetIds),
+        supabase.from('admin_users').update({ created_by: null }).in('created_by', targetIds),
+      ])
+
+      // 2. Delete from users table (cascades)
+      const { error: dbError } = await supabase
+        .from('users')
+        .delete()
+        .in('id', targetIds)
+
+      if (dbError) throw dbError
+
+      // 3. Delete auth users
+      // Note: Supabase Admin API doesn't support bulk delete of auth users efficiently in one call usually,
+      // but we can loop or use a custom function if available. For now, we'll loop in parallel.
+      await Promise.all(targetIds.map(id => supabase.auth.admin.deleteUser(id)))
+    }
+
+    revalidatePath('/admin/users')
+    return { success: true }
+  } catch (err) {
+    console.error('Bulk delete error:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error occurred' }
+  }
+}
+
+export async function deleteAllUsers(type: 'soft' | 'hard'): Promise<ActionResult> {
+  try {
+    const supabase = createAdminClient()
+    const supabaseUser = await createClient()
+    const { data: { user: currentUser } } = await supabaseUser.auth.getUser()
+
+    if (type === 'soft') {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .neq('id', currentUser?.id || '') // protect current user
+
+      if (error) throw error
+    } else {
+      // Fetch all user IDs except current user
+      const { data: users, error: fetchError } = await supabase
+        .from('users')
+        .select('id')
+        .neq('id', currentUser?.id || '')
+      
+      if (fetchError) throw fetchError
+      if (!users || users.length === 0) return { success: true }
+
+      const targetIds = users.map(u => u.id)
+
+      // Call bulk delete to reuse logic
+      return await bulkDeleteUsers(targetIds, 'hard')
+    }
+
+    revalidatePath('/admin/users')
+    return { success: true }
+  } catch (err) {
+    console.error('Delete all error:', err)
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error occurred' }
   }
 }
