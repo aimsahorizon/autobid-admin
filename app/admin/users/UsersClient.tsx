@@ -16,9 +16,20 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  Square,
+  CheckSquare,
+  Archive
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
-import { createUser, updateUser, deleteUser, toggleUserStatus, type UserFormData } from './actions'
+import {
+  createUser,
+  updateUser,
+  deleteUser,
+  toggleUserStatus,
+  bulkDeleteUsers,
+  deleteAllUsers,
+  type UserFormData
+} from './actions'
 
 interface UserRole {
   id: string
@@ -75,6 +86,11 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  
+  // Bulk Action State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
+  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -109,6 +125,25 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
     return email[0].toUpperCase()
   }
 
+  // Selection Logic
+  const toggleSelectUser = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredUsers.length && filteredUsers.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredUsers.map(u => u.id)))
+    }
+  }
+
   const openCreateModal = () => {
     setFormState({
       ...initialFormState,
@@ -138,8 +173,10 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
     setError(null)
   }
 
-  const openDeleteModal = (user: User) => {
-    setSelectedUser(user)
+  const openDeleteModal = (user: User | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
+    if (user) setSelectedUser(user)
+    setActionScope(scope)
+    setDeleteType('soft') // Reset to soft by default
     setModalMode('delete')
     setError(null)
   }
@@ -249,20 +286,44 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
     setLoading(false)
   }
 
-  const handleDeleteUser = async () => {
-    if (!selectedUser) return
-
+  const handleExecuteDelete = async () => {
     setLoading(true)
     setError(null)
 
-    const result = await deleteUser(selectedUser.id)
+    let result;
 
-    if (result.success) {
-      setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id))
-      closeModal()
-      router.refresh()
-    } else {
-      setError(result.error || 'Failed to delete user')
+    try {
+      if (actionScope === 'single' && selectedUser) {
+        if (deleteType === 'soft') {
+          // Use bulkDelete for single soft delete to reuse logic
+          result = await bulkDeleteUsers([selectedUser.id], 'soft')
+        } else {
+          result = await deleteUser(selectedUser.id)
+        }
+      } else if (actionScope === 'selected') {
+        result = await bulkDeleteUsers(Array.from(selectedIds), deleteType)
+      } else if (actionScope === 'all') {
+        result = await deleteAllUsers(deleteType)
+      }
+
+      if (result?.success) {
+        // Optimistic update for single soft delete/delete
+        if (actionScope === 'single' && selectedUser) {
+          if (deleteType === 'soft') {
+            setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, is_active: false } : u))
+          } else {
+            setUsers(prev => prev.filter(u => u.id !== selectedUser.id))
+          }
+        }
+        
+        setSelectedIds(new Set())
+        closeModal()
+        router.refresh()
+      } else {
+        setError(result?.error || 'Failed to delete')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     }
 
     setLoading(false)
@@ -313,12 +374,62 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
               </button>
             ))}
           </div>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+          <div className="flex gap-2">
+            <button
+              onClick={() => openDeleteModal(null, 'all')}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors"
+              title="Delete All Users"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete All
+            </button>
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add User
+            </button>
+          </div>
+        </div>
+
+        {/* Bulk Selection Bar */}
+        {selectedIds.size > 0 && (
+          <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-purple-900 font-medium">
+              <CheckSquare className="w-5 h-5 text-purple-600" />
+              {selectedIds.size} user{selectedIds.size > 1 ? 's' : ''} selected
+            </div>
+            <div className="flex gap-2">
+               <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => openDeleteModal(null, 'selected')}
+                className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Select All Checkbox (Mobile/Quick access) */}
+        <div className="mt-4 flex items-center gap-2">
+          <button 
+            onClick={toggleSelectAll}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
           >
-            <Plus className="w-4 h-4" />
-            Add User
+            {selectedIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
+              <CheckSquare className="w-4 h-4 text-purple-600" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+            Select All {filteredUsers.length > 0 && `(${filteredUsers.length})`}
           </button>
         </div>
       </div>
@@ -334,8 +445,29 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
           filteredUsers.map((user) => (
             <div
               key={user.id}
-              className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all"
+              className={`group relative bg-white rounded-xl border transition-all ${
+                selectedIds.has(user.id) 
+                  ? 'border-purple-500 shadow-purple-100 ring-1 ring-purple-500' 
+                  : 'border-gray-200 hover:shadow-md'
+              } p-4`}
             >
+              {/* Selection Checkbox */}
+              <div className="absolute top-4 right-4 z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSelectUser(user.id)
+                  }}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  {selectedIds.has(user.id) ? (
+                    <CheckSquare className="w-5 h-5 text-purple-600" />
+                  ) : (
+                    <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
+                  )}
+                </button>
+              </div>
+
               <div className="flex items-start gap-4">
                 <div onClick={() => openViewModal(user)} className="cursor-pointer">
                   {user.profile_image_url ? (
@@ -352,7 +484,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pr-8">
                   <p
                     onClick={() => openViewModal(user)}
                     className="font-medium text-gray-900 truncate cursor-pointer hover:text-purple-600"
@@ -389,28 +521,26 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                     )}
                   </div>
                 </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                <StatusBadge status={user.user_roles?.display_name || 'Buyer'} variant="purple" />
                 <div className="flex gap-1">
                   <button
                     onClick={() => openEditModal(user)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                     title="Edit User"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => openDeleteModal(user)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    onClick={() => openDeleteModal(user, 'single')}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete User"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <StatusBadge status={user.user_roles?.display_name || 'Buyer'} variant="purple" />
-                <p className="text-xs text-gray-400">
-                  {new Date(user.created_at).toLocaleDateString()}
-                </p>
               </div>
             </div>
           ))
@@ -451,7 +581,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
               </button>
             </div>
 
-            <div className="space-y-4">
+             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Role</p>
@@ -507,10 +637,13 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                   Close
                 </button>
                 <button
-                  onClick={() => openEditModal(selectedUser)}
+                  onClick={() => {
+                    closeModal()
+                    openEditModal(selectedUser)
+                  }}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
                 >
-                  Edit User
+                  Edit
                 </button>
                 <button
                   onClick={() => handleToggleStatus(selectedUser, 'is_active')}
@@ -530,7 +663,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
 
       {/* Create/Edit User Modal */}
       {(modalMode === 'create' || modalMode === 'edit') && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">
@@ -750,7 +883,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
       )}
 
       {/* Delete Confirmation Modal */}
-      {modalMode === 'delete' && selectedUser && (
+      {modalMode === 'delete' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
             <div className="flex items-center gap-4 mb-4">
@@ -758,8 +891,14 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Delete User</h2>
-                <p className="text-gray-500 text-sm">This action cannot be undone</p>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {actionScope === 'all' 
+                    ? 'Delete All Users' 
+                    : actionScope === 'selected' 
+                      ? `Delete ${selectedIds.size} Users`
+                      : 'Delete User'}
+                </h2>
+                <p className="text-gray-500 text-sm">Select deletion method</p>
               </div>
             </div>
 
@@ -769,20 +908,58 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
               </div>
             )}
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-600">
-                Are you sure you want to delete the user{' '}
-                <strong>{selectedUser.full_name || selectedUser.email}</strong>?
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                This will permanently delete:
-              </p>
-              <ul className="text-sm text-gray-500 list-disc list-inside mt-1">
-                <li>User account and authentication</li>
-                <li>All associated KYC documents</li>
-                <li>Auction listings and bids</li>
-                <li>Transaction history</li>
-              </ul>
+            <div className="mb-6 space-y-4">
+              {/* Deletion Type Selection */}
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                <button
+                  onClick={() => setDeleteType('soft')}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    deleteType === 'soft' 
+                      ? 'bg-white text-purple-700 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Soft Delete
+                </button>
+                <button
+                  onClick={() => setDeleteType('hard')}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    deleteType === 'hard' 
+                      ? 'bg-white text-red-700 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Hard Delete
+                </button>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  {deleteType === 'soft' ? (
+                    <>
+                      <strong>Soft Delete</strong> will mark users as inactive. They will still exist in the database but cannot log in.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> data.
+                    </>
+                  )}
+                </p>
+
+                {deleteType === 'hard' && (
+                  <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
+                    <li>Removes user authentication</li>
+                    <li>Deletes all associated data (KYC, Bids, etc.)</li>
+                    <li>This action cannot be undone</li>
+                  </ul>
+                )}
+                
+                {actionScope === 'all' && deleteType === 'hard' && (
+                   <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
+                     WARNING: You are about to wipe the entire user database!
+                   </p>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -794,16 +971,18 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                 Cancel
               </button>
               <button
-                onClick={handleDeleteUser}
+                onClick={handleExecuteDelete}
                 disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 ${
+                  deleteType === 'hard' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
+                }`}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Trash2 className="w-4 h-4" />
-                    Delete User
+                    {deleteType === 'hard' ? <Trash2 className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                    Confirm {deleteType === 'soft' ? 'Deactivate' : 'Delete'}
                   </>
                 )}
               </button>
