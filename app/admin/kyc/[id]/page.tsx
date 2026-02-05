@@ -1,9 +1,10 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import KycDetailClient from './KycDetailClient'
 
 async function getKycDocument(id: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('kyc_documents')
@@ -16,7 +17,45 @@ async function getKycDocument(id: string) {
     .single()
 
   if (error || !data) return null
-  return data
+
+  // Helper to extract clean path from potentially full URLs
+  const getCleanPath = (url: string) => {
+    if (url.includes('kyc-documents/')) {
+      return url.split('kyc-documents/')[1].split('?')[0]
+    }
+    return url.split('?')[0]
+  }
+
+  // Generate signed URLs for all document images
+  const documentFields = [
+    'national_id_front_url',
+    'national_id_back_url',
+    'secondary_gov_id_front_url',
+    'secondary_gov_id_back_url',
+    'proof_of_address_url',
+    'selfie_with_id_url'
+  ]
+
+  const signedUrls: Record<string, string | null> = {}
+
+  for (const field of documentFields) {
+    const path = data[field] as string | null
+    if (path) {
+      const cleanPath = getCleanPath(path)
+      const { data: signedData } = await supabase.storage
+        .from('kyc-documents')
+        .createSignedUrl(cleanPath, 3600)
+      
+      signedUrls[field] = signedData?.signedUrl || null
+    } else {
+      signedUrls[field] = null
+    }
+  }
+
+  return {
+    ...data,
+    signed_urls: signedUrls
+  }
 }
 
 async function getStatuses() {
