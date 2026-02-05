@@ -793,249 +793,515 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 }
 
 // Auction Detail Modal Component
+
 function AuctionDetailModal({
+
   auction,
+
   bids,
+
   onClose,
+
   getVehicleName,
+
   getPrimaryPhoto,
+
   getTimeRemaining,
+
   getInitials,
+
 }: {
+
   auction: Auction
+
   bids: Bid[]
+
   onClose: () => void
+
   getVehicleName: (a: Auction) => string
+
   getPrimaryPhoto: (p: Array<{ photo_url: string; is_primary: boolean }>) => string | undefined
+
   getTimeRemaining: (t: string | null) => { text: string; urgent: boolean; ended: boolean }
+
   getInitials: (n: string | null, e: string) => string
+
 }) {
+
   const timeInfo = getTimeRemaining(auction.end_time)
+
   const isLive = auction.auction_statuses?.status_name === 'live'
+
   const vehicle = auction.auction_vehicles
 
+
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="relative">
-          <div className="aspect-[21/9] bg-gray-100">
-            {getPrimaryPhoto(auction.auction_photos) ? (
-              <img
-                src={getPrimaryPhoto(auction.auction_photos)}
-                alt={getVehicleName(auction)}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Car className="w-24 h-24 text-gray-300" />
-              </div>
-            )}
-          </div>
+
+    <div className="fixed inset-0 bg-white z-[60] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+
+      {/* Header Bar */}
+
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm z-10">
+
+        <div className="flex items-center gap-4">
+
           <button
+
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+
           >
-            <X className="w-5 h-5" />
+
+            <ChevronRight className="w-6 h-6 rotate-180 text-gray-600" />
+
           </button>
-          {isLive && (
-            <div className={`absolute bottom-4 right-4 px-4 py-2 rounded-lg font-bold ${
-              timeInfo.urgent ? 'bg-red-500 text-white animate-pulse' : 'bg-white shadow-lg text-gray-900'
-            }`}>
-              <Clock className="w-5 h-5 inline mr-2" />
-              {timeInfo.text} remaining
-            </div>
-          )}
-          <div className="absolute bottom-4 left-4">
-            {isLive ? (
-              <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-bold">
-                <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
+
+          <div>
+
+             <h1 className="text-xl font-bold text-gray-900">{getVehicleName(auction)}</h1>
+
+             <div className="flex items-center gap-2 text-sm text-gray-500">
+
+                <span className="font-medium">ID: {auction.id.slice(0, 8)}</span>
+
+                <span>•</span>
+
+                <span className="flex items-center gap-1">
+
+                   <Users className="w-4 h-4" /> {auction.users?.full_name || auction.users?.email}
+
+                </span>
+
+             </div>
+
+          </div>
+
+        </div>
+
+        <div className="flex items-center gap-4">
+
+           {isLive ? (
+
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
+
+                <span className="w-2 h-2 bg-green-500 rounded-full" />
+
                 LIVE AUCTION
-              </span>
-            ) : (
-              <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
-            )}
-          </div>
+
+              </div>
+
+           ) : (
+
+             <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
+
+           )}
+
+           <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border ${
+
+              timeInfo.urgent && isLive
+
+                ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
+
+                : 'bg-gray-50 border-gray-200 text-gray-700'
+
+           }`}>
+
+              <Clock className="w-5 h-5" />
+
+              {timeInfo.text} remaining
+
+           </div>
+
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Auction Details */}
-            <div className="lg:col-span-2 space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{getVehicleName(auction)}</h2>
-                <p className="text-gray-500 mt-1">
-                  Seller: {auction.users?.full_name || auction.users?.email}
-                </p>
-              </div>
-
-              {/* Price Cards */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-purple-50 rounded-xl p-4 text-center">
-                  <p className="text-xs text-purple-600 uppercase font-medium">Current Bid</p>
-                  <p className="text-2xl font-bold text-purple-700 mt-1">
-                    ₱{auction.current_price?.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <p className="text-xs text-gray-600 uppercase font-medium">Starting Price</p>
-                  <p className="text-xl font-bold text-gray-700 mt-1">
-                    ₱{auction.starting_price?.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <p className="text-xs text-gray-600 uppercase font-medium">Bid Increment</p>
-                  <p className="text-xl font-bold text-gray-700 mt-1">
-                    ₱{auction.bid_increment?.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Vehicle Details */}
-              {vehicle && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Vehicle Details</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    {vehicle.brand && (
-                      <div>
-                        <p className="text-gray-500">Brand</p>
-                        <p className="font-medium">{vehicle.brand}</p>
-                      </div>
-                    )}
-                    {vehicle.model && (
-                      <div>
-                        <p className="text-gray-500">Model</p>
-                        <p className="font-medium">{vehicle.model}</p>
-                      </div>
-                    )}
-                    {vehicle.year && (
-                      <div>
-                        <p className="text-gray-500">Year</p>
-                        <p className="font-medium">{vehicle.year}</p>
-                      </div>
-                    )}
-                    {vehicle.mileage && (
-                      <div>
-                        <p className="text-gray-500">Mileage</p>
-                        <p className="font-medium">{vehicle.mileage.toLocaleString()} km</p>
-                      </div>
-                    )}
-                    {vehicle.transmission && (
-                      <div>
-                        <p className="text-gray-500">Transmission</p>
-                        <p className="font-medium">{vehicle.transmission}</p>
-                      </div>
-                    )}
-                    {vehicle.fuel_type && (
-                      <div>
-                        <p className="text-gray-500">Fuel Type</p>
-                        <p className="font-medium">{vehicle.fuel_type}</p>
-                      </div>
-                    )}
-                    {vehicle.exterior_color && (
-                      <div>
-                        <p className="text-gray-500">Color</p>
-                        <p className="font-medium">{vehicle.exterior_color}</p>
-                      </div>
-                    )}
-                    {vehicle.condition && (
-                      <div>
-                        <p className="text-gray-500">Condition</p>
-                        <p className="font-medium">{vehicle.condition}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Auction Stats */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Gavel className="w-8 h-8 text-purple-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{auction.total_bids}</p>
-                    <p className="text-xs text-gray-500">Total Bids</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Eye className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{auction.view_count}</p>
-                    <p className="text-xs text-gray-500">Views</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <DollarSign className="w-8 h-8 text-green-600" />
-                  <div>
-                    <p className="text-2xl font-bold">₱{auction.deposit_amount?.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">Deposit Required</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Bid History */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-purple-600" />
-                Live Bid History ({bids.length})
-              </h3>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {bids.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No bids yet</p>
-                ) : (
-                  bids.map((bid, index) => (
-                    <div
-                      key={bid.id}
-                      className={`p-3 rounded-lg ${
-                        index === 0
-                          ? 'bg-green-100 border-2 border-green-400'
-                          : 'bg-white border border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          {bid.users?.profile_image_url ? (
-                            <img
-                              src={bid.users.profile_image_url}
-                              alt="Bidder"
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              index === 0 ? 'bg-green-200' : 'bg-gray-200'
-                            }`}>
-                              <span className="text-xs font-bold">
-                                {getInitials(bid.users?.full_name || null, bid.users?.email || 'U')}
-                              </span>
-                            </div>
-                          )}
-                          {index === 0 && (
-                            <Trophy className="absolute -top-1 -right-1 w-4 h-4 text-yellow-500" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium truncate ${index === 0 ? 'text-green-800' : 'text-gray-900'}`}>
-                            {bid.users?.full_name || bid.users?.email}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(bid.created_at).toLocaleTimeString()}
-                            {bid.is_auto_bid && ' • Auto-bid'}
-                          </p>
-                        </div>
-                        <p className={`font-bold ${index === 0 ? 'text-green-600' : 'text-gray-700'}`}>
-                          ₱{bid.bid_amount.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
+
+
+
+      {/* Main Content */}
+
+      <div className="flex-1 overflow-y-auto bg-gray-50">
+
+        <div className="max-w-7xl mx-auto p-6 space-y-6">
+
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              
+
+             {/* Left Column: Media & Vehicle Info */}
+
+             <div className="lg:col-span-2 space-y-6">
+
+                {/* Hero Image */}
+
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+
+                  <div className="aspect-video relative bg-black/5">
+
+                    {getPrimaryPhoto(auction.auction_photos) ? (
+
+                      <img
+
+                        src={getPrimaryPhoto(auction.auction_photos)}
+
+                        alt={getVehicleName(auction)}
+
+                        className="w-full h-full object-contain"
+
+                      />
+
+                    ) : (
+
+                      <div className="w-full h-full flex items-center justify-center">
+
+                        <Car className="w-24 h-24 text-gray-300" />
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                </div>
+
+
+
+                {/* Quick Stats Grid */}
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+
+                     <p className="text-xs text-gray-500 uppercase font-medium mb-1">Current Bid</p>
+
+                     <p className="text-2xl font-bold text-purple-600">₱{auction.current_price?.toLocaleString()}</p>
+
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+
+                     <p className="text-xs text-gray-500 uppercase font-medium mb-1">Starting Price</p>
+
+                     <p className="text-xl font-bold text-gray-900">₱{auction.starting_price?.toLocaleString()}</p>
+
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+
+                     <p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Bids</p>
+
+                     <div className="flex items-center gap-2">
+
+                        <Gavel className="w-5 h-5 text-gray-400" />
+
+                        <p className="text-xl font-bold text-gray-900">{auction.total_bids}</p>
+
+                     </div>
+
+                  </div>
+
+                   <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+
+                     <p className="text-xs text-gray-500 uppercase font-medium mb-1">Views</p>
+
+                     <div className="flex items-center gap-2">
+
+                        <Eye className="w-5 h-5 text-gray-400" />
+
+                        <p className="text-xl font-bold text-gray-900">{auction.view_count}</p>
+
+                     </div>
+
+                  </div>
+
+                </div>
+
+
+
+                {/* Vehicle Specs */}
+
+                {vehicle && (
+
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+
+                       <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+
+                          <Car className="w-5 h-5 text-gray-500" />
+
+                          Vehicle Specifications
+
+                       </h3>
+
+                    </div>
+
+                    <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+
+                        {[
+
+                          { label: 'Brand', value: vehicle.brand },
+
+                          { label: 'Model', value: vehicle.model },
+
+                          { label: 'Variant', value: vehicle.variant },
+
+                          { label: 'Year', value: vehicle.year },
+
+                          { label: 'Condition', value: vehicle.condition },
+
+                          { label: 'Mileage', value: vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : null },
+
+                          { label: 'Transmission', value: vehicle.transmission },
+
+                          { label: 'Fuel Type', value: vehicle.fuel_type },
+
+                          { label: 'Color', value: vehicle.exterior_color },
+
+                        ].map((item) => item.value && (
+
+                           <div key={item.label}>
+
+                              <p className="text-sm text-gray-500 mb-1">{item.label}</p>
+
+                              <p className="font-medium text-gray-900">{item.value}</p>
+
+                           </div>
+
+                        ))}
+
+                    </div>
+
+                  </div>
+
+                )}
+
+                
+
+                {/* Description */}
+
+                {auction.description && (
+
+                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+
+                      <h3 className="font-semibold text-gray-900 mb-4">Description</h3>
+
+                      <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{auction.description}</p>
+
+                   </div>
+
+                )}
+
+             </div>
+
+
+
+             {/* Right Column: Bid History & Admin Actions */}
+
+             <div className="space-y-6">
+
+                {/* Bid History */}
+
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-[600px]">
+
+                   <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+
+                         <TrendingUp className="w-5 h-5 text-purple-600" />
+
+                         Bid History
+
+                      </h3>
+
+                      <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+
+                         {bids.length} Bids
+
+                      </span>
+
+                   </div>
+
+                   
+
+                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+                      {bids.length === 0 ? (
+
+                        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-500">
+
+                           <Gavel className="w-12 h-12 text-gray-300 mb-3" />
+
+                           <p>No bids placed yet</p>
+
+                        </div>
+
+                      ) : (
+
+                        bids.map((bid, index) => (
+
+                           <div
+
+                             key={bid.id}
+
+                             className={`p-4 rounded-xl transition-all ${
+
+                               index === 0
+
+                                 ? 'bg-green-50 border border-green-200 shadow-sm'
+
+                                 : 'bg-white border border-gray-100 hover:border-gray-300'
+
+                             }`}
+
+                           >
+
+                             <div className="flex justify-between items-start mb-2">
+
+                                <div className="flex items-center gap-3">
+
+                                   <div className="relative">
+
+                                      {bid.users?.profile_image_url ? (
+
+                                        <img
+
+                                          src={bid.users.profile_image_url}
+
+                                          alt="Bidder"
+
+                                          className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
+
+                                        />
+
+                                      ) : (
+
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm ${
+
+                                          index === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+
+                                        }`}>
+
+                                          <span className="font-bold">
+
+                                            {getInitials(bid.users?.full_name || null, bid.users?.email || 'U')}
+
+                                          </span>
+
+                                        </div>
+
+                                      )}
+
+                                      {index === 0 && (
+
+                                         <div className="absolute -top-2 -right-2 bg-yellow-400 p-1 rounded-full border-2 border-white shadow-sm">
+
+                                            <Trophy className="w-3 h-3 text-white fill-white" />
+
+                                         </div>
+
+                                      )}
+
+                                   </div>
+
+                                   <div>
+
+                                      <p className="font-bold text-gray-900 text-sm">
+
+                                         {bid.users?.full_name || bid.users?.email}
+
+                                      </p>
+
+                                      <p className="text-xs text-gray-500">
+
+                                         {new Date(bid.created_at).toLocaleString()}
+
+                                      </p>
+
+                                   </div>
+
+                                </div>
+
+                             </div>
+
+                             
+
+                             <div className="flex items-center justify-between mt-2 pl-13">
+
+                                <span className={`text-lg font-bold ${index === 0 ? 'text-green-600' : 'text-gray-700'}`}>
+
+                                   ₱{bid.bid_amount.toLocaleString()}
+
+                                </span>
+
+                                {bid.is_auto_bid && (
+
+                                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md flex items-center gap-1">
+
+                                      <Zap className="w-3 h-3" /> Auto
+
+                                   </span>
+
+                                )}
+
+                             </div>
+
+                           </div>
+
+                        ))
+
+                      )}
+
+                   </div>
+
+                </div>
+
+
+
+                {/* Additional Metadata Card */}
+
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+
+                   <h3 className="font-semibold text-gray-900 mb-2">Auction Settings</h3>
+
+                   <div className="flex justify-between py-2 border-b border-gray-100">
+
+                      <span className="text-gray-500 text-sm">Deposit Required</span>
+
+                      <span className="font-medium">₱{auction.deposit_amount?.toLocaleString()}</span>
+
+                   </div>
+
+                   <div className="flex justify-between py-2 border-b border-gray-100">
+
+                      <span className="text-gray-500 text-sm">Bid Increment</span>
+
+                      <span className="font-medium">₱{auction.bid_increment?.toLocaleString()}</span>
+
+                   </div>
+
+                   <div className="flex justify-between py-2 border-b border-gray-100">
+
+                      <span className="text-gray-500 text-sm">Reserve Price</span>
+
+                      <span className="font-medium">{auction.reserve_price ? `₱${auction.reserve_price.toLocaleString()}` : 'None'}</span>
+
+                   </div>
+
+                </div>
+
+             </div>
+
+           </div>
+
+        </div>
+
+      </div>
+
     </div>
+
   )
+
 }
