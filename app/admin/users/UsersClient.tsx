@@ -86,9 +86,18 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [isDeleteEnabled, setIsDeleteEnabled] = useState(false)
+  const [isSelectionEnabled, setIsSelectionEnabled] = useState(false)
   
   // Bulk Action State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const toggleSelectionMode = () => {
+    if (isSelectionEnabled) {
+      setSelectedIds(new Set())
+    }
+    setIsSelectionEnabled(!isSelectionEnabled)
+  }
   const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
   const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
 
@@ -348,41 +357,70 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
     <>
       {/* Filters & Actions */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name, email, or username..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            />
+        <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full lg:w-auto">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or username..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-2 flex-wrap items-center">
+              {(['all', 'verified', 'unverified', 'active', 'inactive'] as const).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === status
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {(['all', 'verified', 'unverified', 'active', 'inactive'] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === status
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
+
+          <div className="flex gap-2 items-center ml-auto shrink-0">
             <button
-              onClick={() => openDeleteModal(null, 'all')}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors"
-              title="Delete All Users"
+              onClick={toggleSelectionMode}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                isSelectionEnabled 
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={isSelectionEnabled ? 'Disable Selection' : 'Enable Selection'}
             >
-              <Trash2 className="w-4 h-4" />
-              Delete All
+              <CheckSquare className="w-4 h-4" />
+              {isSelectionEnabled ? 'Selection Enabled' : 'Enable Selection'}
             </button>
+            <button
+              onClick={() => setIsDeleteEnabled(!isDeleteEnabled)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                isDeleteEnabled 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={isDeleteEnabled ? 'Disable Deletion' : 'Enable Deletion'}
+            >
+              {isDeleteEnabled ? <Shield className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+              {isDeleteEnabled ? 'Deletion Enabled' : 'Enable Deletion'}
+            </button>
+            {isDeleteEnabled && (
+              <button
+                onClick={() => openDeleteModal(null, 'all')}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors animate-in fade-in"
+                title="Delete All Users"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All
+              </button>
+            )}
             <button
               onClick={openCreateModal}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
@@ -394,7 +432,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
         </div>
 
         {/* Bulk Selection Bar */}
-        {selectedIds.size > 0 && (
+        {isSelectionEnabled && selectedIds.size > 0 && (
           <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-purple-900 font-medium">
               <CheckSquare className="w-5 h-5 text-purple-600" />
@@ -407,31 +445,35 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => openDeleteModal(null, 'selected')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Selected
-              </button>
+              {isDeleteEnabled && (
+                <button
+                  onClick={() => openDeleteModal(null, 'selected')}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm animate-in fade-in"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected
+                </button>
+              )}
             </div>
           </div>
         )}
 
         {/* Select All Checkbox (Mobile/Quick access) */}
-        <div className="mt-4 flex items-center gap-2">
-          <button 
-            onClick={toggleSelectAll}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
-          >
-            {selectedIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
-              <CheckSquare className="w-4 h-4 text-purple-600" />
-            ) : (
-              <Square className="w-4 h-4" />
-            )}
-            Select All {filteredUsers.length > 0 && `(${filteredUsers.length})`}
-          </button>
-        </div>
+        {isSelectionEnabled && (
+          <div className="mt-4 flex items-center gap-2 animate-in fade-in">
+            <button 
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              {selectedIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
+                <CheckSquare className="w-4 h-4 text-purple-600" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              Select All {filteredUsers.length > 0 && `(${filteredUsers.length})`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Users Grid */}
@@ -452,21 +494,23 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
               } p-4`}
             >
               {/* Selection Checkbox */}
-              <div className="absolute top-4 right-4 z-10">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleSelectUser(user.id)
-                  }}
-                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                >
-                  {selectedIds.has(user.id) ? (
-                    <CheckSquare className="w-5 h-5 text-purple-600" />
-                  ) : (
-                    <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
-                  )}
-                </button>
-              </div>
+              {isSelectionEnabled && (
+                <div className="absolute top-4 right-4 z-10 animate-in fade-in">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleSelectUser(user.id)
+                    }}
+                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                  >
+                    {selectedIds.has(user.id) ? (
+                      <CheckSquare className="w-5 h-5 text-purple-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-start gap-4">
                 <div onClick={() => openViewModal(user)} className="cursor-pointer">
@@ -533,13 +577,15 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => openDeleteModal(user, 'single')}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete User"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isDeleteEnabled && (
+                    <button
+                      onClick={() => openDeleteModal(user, 'single')}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors animate-in fade-in"
+                      title="Delete User"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

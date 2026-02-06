@@ -22,7 +22,8 @@ import {
   CheckSquare,
   Trash2,
   AlertTriangle,
-  Archive
+  Archive,
+  Shield
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { bulkDeleteAuctions, deleteAllAuctions } from './actions'
@@ -105,9 +106,18 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(new Date())
+  const [isDeleteEnabled, setIsDeleteEnabled] = useState(false)
+  const [isSelectionEnabled, setIsSelectionEnabled] = useState(false)
   
   // Bulk Action State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const toggleSelectionMode = () => {
+    if (isSelectionEnabled) {
+      setSelectedIds(new Set())
+    }
+    setIsSelectionEnabled(!isSelectionEnabled)
+  }
   const [modalMode, setModalMode] = useState<'delete' | null>(null)
   const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
   const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
@@ -489,163 +499,567 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-        {/* Filters & Actions */}
-
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-
-          <div className="flex flex-col sm:flex-row gap-4">
-
-            <div className="relative flex-1">
-
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-
-              <input
-
-                type="text"
-
-                placeholder="Search by vehicle, brand, seller..."
-
-                value={search}
-
-                onChange={(e) => setSearch(e.target.value)}
-
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-
-              />
-
-            </div>
-
-            <div className="flex gap-2">
-
-              {(['all', 'live', 'scheduled', 'ended'] as const).map((status) => (
-
-                <button
-
-                  key={status}
-
-                  onClick={() => setFilter(status)}
-
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-
-                    filter === status
-
-                      ? 'bg-purple-600 text-white'
-
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-
-                  }`}
-
-                >
-
-                  {status === 'live' && <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />}
-
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-
-                </button>
-
-              ))}
-
-               <button
-
-                onClick={() => openDeleteModal(null, 'all')}
-
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors"
-
-                title="Delete All Auctions"
-
-              >
-
-                <Trash2 className="w-4 h-4" />
-
-                Delete All
-
-              </button>
-
-            </div>
-
-          </div>
+                {/* Filters & Actions */}
 
   
 
-          {/* Bulk Selection Bar */}
-
-          {selectedIds.size > 0 && (
-
-            <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
-
-              <div className="flex items-center gap-2 text-purple-900 font-medium">
-
-                <CheckSquare className="w-5 h-5 text-purple-600" />
-
-                {selectedIds.size} auction{selectedIds.size > 1 ? 's' : ''} selected
-
-              </div>
-
-              <div className="flex gap-2">
-
-                 <button
-
-                  onClick={() => setSelectedIds(new Set())}
-
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
-
-                >
-
-                  Cancel
-
-                </button>
-
-                <button
-
-                  onClick={() => openDeleteModal(null, 'selected')}
-
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm"
-
-                >
-
-                  <Trash2 className="w-4 h-4" />
-
-                  Delete Selected
-
-                </button>
-
-              </div>
-
-            </div>
-
-          )}
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
 
   
 
-           {/* Select All Checkbox */}
+                  <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
 
-          <div className="mt-4 flex items-center gap-2">
+  
 
-            <button 
+                    <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full lg:w-auto">
 
-              onClick={toggleSelectAll}
+  
 
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                      <div className="relative flex-1 min-w-[240px]">
 
-            >
+  
 
-              {selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0 ? (
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
 
-                <CheckSquare className="w-4 h-4 text-purple-600" />
+  
 
-              ) : (
+                        <input
 
-                <Square className="w-4 h-4" />
+  
 
-              )}
+                          type="text"
 
-              Select All {filteredAuctions.length > 0 && `(${filteredAuctions.length})`}
+  
 
-            </button>
+                          placeholder="Search by vehicle, brand, seller..."
 
-          </div>
+  
 
-        </div>
+                          value={search}
+
+  
+
+                          onChange={(e) => setSearch(e.target.value)}
+
+  
+
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+
+  
+
+                        />
+
+  
+
+                      </div>
+
+  
+
+                      <div className="flex gap-2 flex-wrap items-center">
+
+  
+
+                        {(['all', 'live', 'scheduled', 'ended'] as const).map((status) => (
+
+  
+
+                          <button
+
+  
+
+                            key={status}
+
+  
+
+                            onClick={() => setFilter(status)}
+
+  
+
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+
+  
+
+                              filter === status
+
+  
+
+                                ? 'bg-purple-600 text-white'
+
+  
+
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+
+  
+
+                            }`}
+
+  
+
+                          >
+
+  
+
+                            {status === 'live' && <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />}
+
+  
+
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+
+  
+
+                          </button>
+
+  
+
+                        ))}
+
+  
+
+                      </div>
+
+  
+
+                    </div>
+
+  
+
+        
+
+  
+
+                    <div className="flex gap-2 items-center ml-auto shrink-0">
+
+  
+
+                      <button
+
+  
+
+                        onClick={toggleSelectionMode}
+
+  
+
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+
+  
+
+                          isSelectionEnabled 
+
+  
+
+                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+
+  
+
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+
+  
+
+                        }`}
+
+  
+
+                        title={isSelectionEnabled ? 'Disable Selection' : 'Enable Selection'}
+
+  
+
+                      >
+
+  
+
+                        <CheckSquare className="w-4 h-4" />
+
+  
+
+                        {isSelectionEnabled ? 'Enabled' : 'Select'}
+
+  
+
+                      </button>
+
+  
+
+                      <button
+
+  
+
+                        onClick={() => setIsDeleteEnabled(!isDeleteEnabled)}
+
+  
+
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+
+  
+
+                          isDeleteEnabled 
+
+  
+
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+
+  
+
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+
+  
+
+                        }`}
+
+  
+
+                        title={isDeleteEnabled ? 'Disable Deletion' : 'Enable Deletion'}
+
+  
+
+                      >
+
+  
+
+                        <Shield className="w-4 h-4" />
+
+  
+
+                        {isDeleteEnabled ? 'Enabled' : 'Delete'}
+
+  
+
+                      </button>
+
+  
+
+                       {isDeleteEnabled && (
+
+  
+
+                         <button
+
+  
+
+                          onClick={() => openDeleteModal(null, 'all')}
+
+  
+
+                          className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors animate-in fade-in"
+
+  
+
+                          title="Delete All Auctions"
+
+  
+
+                        >
+
+  
+
+                          <Trash2 className="w-4 h-4" />
+
+  
+
+                          Delete All
+
+  
+
+                        </button>
+
+  
+
+                       )}
+
+  
+
+                    </div>
+
+  
+
+                  </div>
+
+  
+
+        
+
+                  
+
+                                                    {/* Bulk Selection Bar */}
+
+                  
+
+                                                    {isSelectionEnabled && selectedIds.size > 0 && (
+
+                  
+
+                                                      <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
+
+                  
+
+                                                        <div className="flex items-center gap-2 text-purple-900 font-medium">
+
+                  
+
+                                                          <CheckSquare className="w-5 h-5 text-purple-600" />
+
+                  
+
+                                                          {selectedIds.size} auction{selectedIds.size > 1 ? 's' : ''} selected
+
+                  
+
+                                                        </div>
+
+                  
+
+                                                        <div className="flex gap-2">
+
+                  
+
+                                                           <button
+
+                  
+
+                                                            onClick={() => setSelectedIds(new Set())}
+
+                  
+
+                                                            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+
+                  
+
+                                                          >
+
+                  
+
+                                                            Cancel
+
+                  
+
+                                                          </button>
+
+                  
+
+                                                          {isDeleteEnabled && (
+
+                  
+
+                                                            <button
+
+                  
+
+                                                              onClick={() => openDeleteModal(null, 'selected')}
+
+                  
+
+                                                              className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm animate-in fade-in"
+
+                  
+
+                                                            >
+
+                  
+
+                                                              <Trash2 className="w-4 h-4" />
+
+                  
+
+                                                              Delete Selected
+
+                  
+
+                                                            </button>
+
+                  
+
+                                                          )}
+
+                  
+
+                                                        </div>
+
+                  
+
+                                                      </div>
+
+                  
+
+                                                    )}
+
+                  
+
+                          
+
+                  
+
+  
+
+                      {/* Select All Checkbox */}
+
+                  
+
+                          
+
+                  
+
+  
+
+                     {isSelectionEnabled && (
+
+                  
+
+                          
+
+                  
+
+  
+
+                       <div className="mt-4 flex items-center gap-2 animate-in fade-in">
+
+                  
+
+                          
+
+                  
+
+  
+
+                         <button 
+
+                  
+
+                          
+
+                  
+
+  
+
+                           onClick={toggleSelectAll}
+
+                  
+
+                          
+
+                  
+
+  
+
+                           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+
+                  
+
+                          
+
+                  
+
+  
+
+                         >
+
+                  
+
+                          
+
+                  
+
+  
+
+                           {selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0 ? (
+
+                  
+
+                          
+
+                  
+
+  
+
+                             <CheckSquare className="w-4 h-4 text-purple-600" />
+
+                  
+
+                          
+
+                  
+
+  
+
+                           ) : (
+
+                  
+
+                          
+
+                  
+
+  
+
+                             <Square className="w-4 h-4" />
+
+                  
+
+                          
+
+                  
+
+  
+
+                           )}
+
+                  
+
+                          
+
+                  
+
+  
+
+                           Select All {filteredAuctions.length > 0 && `(${filteredAuctions.length})`}
+
+                  
+
+                          
+
+                  
+
+  
+
+                         </button>
+
+                  
+
+                          
+
+                  
+
+  
+
+                       </div>
+
+                  
+
+                          
+
+                  
+
+  
+
+                     )}
+
+                  
+
+                          
+
+                  
+
+  
+
+                   </div>
+
+                  
+
+                          
+
+                  
+
+  
+
+           
 
   
 
@@ -695,37 +1109,69 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                 >
 
-                  {/* Selection Checkbox */}
+                                    {/* Card Actions */}
 
-                   <div className="absolute top-3 right-3 z-20">
+                                    <div className="absolute top-3 right-3 z-20 flex gap-2">
 
-                      <button
+                                      {isSelectionEnabled && (
 
-                        onClick={(e) => {
+                                        <button
 
-                          e.stopPropagation()
+                                          onClick={(e) => {
 
-                          toggleSelectAuction(auction.id)
+                                            e.stopPropagation()
 
-                        }}
+                                            toggleSelectAuction(auction.id)
 
-                        className="p-1 bg-white/80 rounded-full hover:bg-white transition-colors"
+                                          }}
 
-                      >
+                                          className="p-1 bg-white/80 rounded-full hover:bg-white transition-colors shadow-sm animate-in fade-in"
 
-                        {selectedIds.has(auction.id) ? (
+                                        >
 
-                          <CheckSquare className="w-6 h-6 text-purple-600" />
+                                          {selectedIds.has(auction.id) ? (
 
-                        ) : (
+                                            <CheckSquare className="w-6 h-6 text-purple-600" />
 
-                          <Square className="w-6 h-6 text-gray-500 hover:text-purple-600" />
+                                          ) : (
 
-                        )}
+                                            <Square className="w-6 h-6 text-gray-500 hover:text-purple-600" />
 
-                      </button>
+                                          )}
 
-                    </div>
+                                        </button>
+
+                                      )}
+
+                                      
+
+                                      {isDeleteEnabled && (
+
+                                         <button
+
+                                          onClick={(e) => {
+
+                                              e.stopPropagation()
+
+                                              openDeleteModal(auction, 'single')
+
+                                          }}
+
+                                          className="p-1 bg-white/80 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors shadow-sm animate-in fade-in"
+
+                                          title="Delete Auction"
+
+                                         >
+
+                                             <Trash2 className="w-6 h-6" />
+
+                                         </button>
+
+                                      )}
+
+                                    </div>
+
+                  
 
   
 
@@ -1001,43 +1447,21 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                       </div>
 
-                  </div>
+                                                                    </div>
 
-                   {/* Quick Action: Delete */}
+                                                                  </div>
 
-                  <div className="absolute top-2 right-12 z-20">
+                                                    
 
-                     <button
+                                                )
 
-                      onClick={(e) => {
+                                              })
 
-                          e.stopPropagation()
+                                            )}
 
-                          openDeleteModal(auction, 'single')
+                                          </div>
 
-                      }}
-
-                      className="p-1 bg-white/80 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
-
-                      title="Delete Auction"
-
-                     >
-
-                         <Trash2 className="w-5 h-5" />
-
-                     </button>
-
-                  </div>
-
-                </div>
-
-              )
-
-            })
-
-          )}
-
-        </div>
+                                  
 
   
 
