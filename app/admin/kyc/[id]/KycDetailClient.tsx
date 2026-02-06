@@ -17,7 +17,7 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge'
 
 interface KycDetailClientProps {
-  document: Record<string, unknown>
+  document: Record<string, any>
   statuses: Array<{ id: string; status_name: string; display_name: string }>
 }
 
@@ -26,8 +26,9 @@ export default function KycDetailClient({ document, statuses }: KycDetailClientP
   const [loading, setLoading] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
-  const user = document.users as Record<string, unknown>
+  const user = document.users as Record<string, any>
   const status = document.kyc_statuses as { id: string; status_name: string; display_name: string }
+  const signedUrls = document.signed_urls as Record<string, string | null>
 
   const handleApprove = async () => {
     setLoading(true)
@@ -219,36 +220,168 @@ export default function KycDetailClient({ document, statuses }: KycDetailClientP
           </div>
         </div>
 
-        {/* Selfie Image */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Selfie Verification</h2>
-          {document.selfie_with_id_url ? (
-            <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
-              <img
-                src={document.selfie_with_id_url as string}
-                alt="User Selfie"
-                className="w-full h-full object-cover"
-              />
+        {/* Verification Documents */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-purple-600" />
+            Verification Documents
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* National ID Front */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">National ID (Front)</p>
+              {signedUrls.national_id_front_url ? (
+                <a 
+                  href={signedUrls.national_id_front_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                >
+                  <img
+                    src={signedUrls.national_id_front_url}
+                    alt="National ID Front"
+                    className="w-full h-full object-contain"
+                  />
+                </a>
+              ) : (
+                <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                  <p className="text-sm text-gray-400">Not provided</p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <User className="w-16 h-16 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-500">No selfie uploaded</p>
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Document Image Placeholder */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">ID Document</h2>
-          <div className="aspect-[4/3] bg-gray-100 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500">Document stored securely in Supabase Vault</p>
-              <p className="text-xs text-gray-400 mt-1">Access restricted for privacy</p>
+            {/* National ID Back */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">National ID (Back)</p>
+              {signedUrls.national_id_back_url ? (
+                <a 
+                  href={signedUrls.national_id_back_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                >
+                  <img
+                    src={signedUrls.national_id_back_url}
+                    alt="National ID Back"
+                    className="w-full h-full object-contain"
+                  />
+                </a>
+              ) : (
+                <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                  <p className="text-sm text-gray-400">Not provided</p>
+                </div>
+              )}
             </div>
+
+            {/* Selfie with ID */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Selfie with ID</p>
+              {signedUrls.selfie_with_id_url ? (
+                <a 
+                  href={signedUrls.selfie_with_id_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                >
+                  <img
+                    src={signedUrls.selfie_with_id_url}
+                    alt="Selfie with ID"
+                    className="w-full h-full object-contain"
+                  />
+                </a>
+              ) : (
+                <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                  <p className="text-sm text-gray-400">Not provided</p>
+                </div>
+              )}
+            </div>
+
+            {/* Secondary ID Front */}
+            {document.secondary_gov_id_type && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Secondary ID (Front) - <span className="capitalize">{document.secondary_gov_id_type.replace(/_/g, ' ')}</span>
+                </p>
+                {signedUrls.secondary_gov_id_front_url ? (
+                  <a 
+                    href={signedUrls.secondary_gov_id_front_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={signedUrls.secondary_gov_id_front_url}
+                      alt="Secondary ID Front"
+                      className="w-full h-full object-contain"
+                    />
+                  </a>
+                ) : (
+                  <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                    <p className="text-sm text-gray-400">Not provided</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Secondary ID Back */}
+            {document.secondary_gov_id_type && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Secondary ID (Back)</p>
+                {signedUrls.secondary_gov_id_back_url ? (
+                  <a 
+                    href={signedUrls.secondary_gov_id_back_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={signedUrls.secondary_gov_id_back_url}
+                      alt="Secondary ID Back"
+                      className="w-full h-full object-contain"
+                    />
+                  </a>
+                ) : (
+                  <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                    <p className="text-sm text-gray-400">Not provided</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Proof of Address */}
+            {document.proof_of_address_type && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Proof of Address - <span className="capitalize">{document.proof_of_address_type.replace(/_/g, ' ')}</span>
+                </p>
+                {signedUrls.proof_of_address_url ? (
+                  <a 
+                    href={signedUrls.proof_of_address_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block relative aspect-[3/2] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity"
+                  >
+                    {signedUrls.proof_of_address_url.toLowerCase().includes('.pdf') ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50">
+                        <FileText className="w-12 h-12 text-gray-400 mb-2" />
+                        <p className="text-xs text-gray-500">View PDF Document</p>
+                      </div>
+                    ) : (
+                      <img
+                        src={signedUrls.proof_of_address_url}
+                        alt="Proof of Address"
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </a>
+                ) : (
+                  <div className="aspect-[3/2] bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                    <p className="text-sm text-gray-400">Not provided</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
