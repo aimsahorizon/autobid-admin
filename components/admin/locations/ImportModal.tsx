@@ -25,14 +25,13 @@ export default function ImportModal({ isOpen, onClose }: ImportModalProps) {
   }
 
   const parseCSV = (text: string) => {
-    const lines = text.split(/?
-/).filter(line => line.trim() !== '')
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '')
     const data = []
     
     // Simple parser: assumes Region, Province, City, Barangay order
     // Skips header if "Region" is in the first line
     let startIndex = 0
-    if (lines[0].toLowerCase().includes('region')) {
+    if (lines.length > 0 && lines[0].toLowerCase().includes('region')) {
       startIndex = 1
     }
 

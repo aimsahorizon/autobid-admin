@@ -34,6 +34,7 @@ async function getListings() {
       total_bids,
       view_count,
       is_featured,
+      is_active,
       start_time,
       end_time,
       created_at,
