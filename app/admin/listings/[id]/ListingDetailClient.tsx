@@ -23,11 +23,12 @@ import StatusBadge from '@/components/ui/StatusBadge'
 interface ListingDetailClientProps {
   listing: Record<string, unknown>
   statuses: Array<{ id: string; status_name: string; display_name: string }>
+  adminUserId: string | null
 }
 
 type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other'
 
-export default function ListingDetailClient({ listing, statuses }: ListingDetailClientProps) {
+export default function ListingDetailClient({ listing, statuses, adminUserId }: ListingDetailClientProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -57,6 +58,11 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
   ]
 
   const handleStatusChange = async (newStatusName: string, notes?: string) => {
+    if (newStatusName === 'cancelled' && !notes?.trim()) {
+      alert('Please provide feedback for rejection.')
+      return
+    }
+
     setLoading(true)
     const supabase = createClient()
 
@@ -66,21 +72,33 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
       return
     }
 
+    // Update auction with status and review info
     const { error } = await supabase
       .from('auctions')
-      .update({ status_id: newStatus.id })
+      .update({ 
+        status_id: newStatus.id,
+        review_notes: notes || null,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminUserId
+      })
       .eq('id', listing.id)
 
     if (!error) {
-      // Log to audit
-      await supabase.from('auction_moderation').insert({
-        auction_id: listing.id,
-        action: newStatusName === 'approved' ? 'approve' : 'reject',
-        reason: notes || null,
-        notes: notes || null,
-      })
+      // Log to audit (auction_moderation)
+      if (adminUserId) {
+        await supabase.from('auction_moderation').insert({
+          auction_id: listing.id,
+          moderator_id: adminUserId,
+          action: newStatusName === 'approved' ? 'approve' : 'reject',
+          reason: notes || null,
+          notes: notes || null,
+        })
+      }
 
       router.refresh()
+    } else {
+      console.error('Error updating auction status:', error)
+      alert('Failed to update status. Please try again.')
     }
 
     setLoading(false)
@@ -390,7 +408,7 @@ export default function ListingDetailClient({ listing, statuses }: ListingDetail
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Actions</h2>
               <div className="space-y-4">
                 <textarea
-                  placeholder="Review notes (optional)"
+                  placeholder="Review notes (required for rejection, optional for approval)"
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
