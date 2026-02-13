@@ -29,9 +29,13 @@ const navigation = [
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ]
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
+}
+
+export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarProps) {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
