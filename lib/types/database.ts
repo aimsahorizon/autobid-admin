@@ -227,3 +227,38 @@ export interface VehicleVariant {
   updated_at?: string
   vehicle_models?: VehicleModel
 }
+
+export interface AddrRegion {
+  id: string
+  name: string
+  code: string | null
+  is_active: boolean
+  created_at?: string
+}
+
+export interface AddrProvince {
+  id: string
+  region_id: string
+  name: string
+  is_active: boolean
+  created_at?: string
+  region?: AddrRegion
+}
+
+export interface AddrCity {
+  id: string
+  province_id: string
+  name: string
+  is_active: boolean
+  created_at?: string
+  province?: AddrProvince
+}
+
+export interface AddrBarangay {
+  id: string
+  city_id: string
+  name: string
+  is_active: boolean
+  created_at?: string
+  city?: AddrCity
+}

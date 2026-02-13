@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -52,6 +52,7 @@ interface Auction {
   total_bids: number
   view_count: number
   is_featured: boolean
+  is_active: boolean
   start_time: string | null
   end_time: string | null
   created_at: string
@@ -199,6 +200,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
         total_bids,
         view_count,
         is_featured,
+        is_active,
         start_time,
         end_time,
         created_at,
@@ -248,6 +250,29 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
     } else {
       setSelectedIds(new Set(filteredAuctions.map(a => a.id)))
     }
+  }
+
+  const handleBulkActivate = async (active: boolean) => {
+    if (selectedIds.size === 0) return
+    setLoading(true)
+    const supabase = createClient()
+    
+    const { error } = await supabase
+      .from('auctions')
+      .update({ is_active: active })
+      .in('id', Array.from(selectedIds))
+
+    if (!error) {
+       await refreshData()
+       setSelectedIds(new Set())
+    }
+    setLoading(false)
+  }
+  
+  const handleToggleSingleActive = async (id: string, currentStatus: boolean) => {
+     const supabase = createClient()
+     await supabase.from('auctions').update({ is_active: !currentStatus }).eq('id', id)
+     setAuctions(prev => prev.map(a => a.id === id ? { ...a, is_active: !currentStatus } : a))
   }
 
   const openDeleteModal = (auction: Auction | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
@@ -808,6 +833,19 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                   
 
                                                         <div className="flex gap-2">
+                                                           {/* Bulk Activate/Deactivate */}
+                                                           <button
+                                                            onClick={() => handleBulkActivate(true)}
+                                                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                                                           >
+                                                             Activate
+                                                           </button>
+                                                           <button
+                                                            onClick={() => handleBulkActivate(false)}
+                                                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+                                                           >
+                                                             Deactivate
+                                                           </button>
 
                   
 
@@ -1098,7 +1136,8 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                   key={auction.id}
 
                   className={`group relative bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-xl ${
-
+                    !auction.is_active ? 'opacity-75 bg-gray-50' : ''
+                  } ${
                     isLive ? 'border-green-400' : 'border-gray-200'
 
                   } ${timeInfo.urgent && isLive ? 'ring-2 ring-red-400 ring-opacity-50' : ''} ${
@@ -1142,6 +1181,17 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                                         </button>
 
                                       )}
+                                      
+                                      <button
+                                          onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleToggleSingleActive(auction.id, auction.is_active)
+                                          }}
+                                          className={`p-1 bg-white/80 rounded-full hover:bg-gray-100 transition-colors shadow-sm animate-in fade-in ${!auction.is_active ? 'text-red-500' : 'text-green-500'}`}
+                                          title={auction.is_active ? 'Deactivate' : 'Activate'}
+                                         >
+                                             <Shield className="w-6 h-6" />
+                                      </button>
 
                                       
 
@@ -1209,7 +1259,13 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                         {/* Status Badge Overlay */}
 
-                        <div className="absolute top-3 left-3 z-10">
+                        <div className="absolute top-3 left-3 z-10 space-y-1">
+
+                          {!auction.is_active && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-medium mr-2">
+                                INACTIVE
+                              </span>
+                          )}
 
                           {isLive && timeInfo.ended ? (
 
@@ -1323,7 +1379,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <p className="text-2xl font-bold text-purple-600">
 
-                                ₱{auction.current_price?.toLocaleString()}
+                                â‚±{auction.current_price?.toLocaleString()}
 
                               </p>
 
@@ -1333,7 +1389,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <p className="text-xs text-gray-500 uppercase">Starting</p>
 
-                              <p className="text-sm text-gray-600">₱{auction.starting_price?.toLocaleString()}</p>
+                              <p className="text-sm text-gray-600">â‚±{auction.starting_price?.toLocaleString()}</p>
 
                             </div>
 
@@ -1397,7 +1453,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <div className="text-right">
 
-                                <p className="font-bold text-green-600">₱{highestBidder.bid_amount.toLocaleString()}</p>
+                                <p className="font-bold text-green-600">â‚±{highestBidder.bid_amount.toLocaleString()}</p>
 
                                 {highestBidder.is_auto_bid && (
 
@@ -1715,103 +1771,87 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-  // Auction Detail Modal Component
+    // Auction Detail Modal Component
 
   
 
-  function AuctionDetailModal({
+    function AuctionDetailModal({
 
   
 
-    auction,
+      auction,
 
   
 
-    bids,
+      bids,
 
   
 
-    onClose,
+      onClose,
 
   
 
-    getVehicleName,
+      getVehicleName,
 
   
 
-    getPrimaryPhoto,
+      getPrimaryPhoto,
 
   
 
-    getTimeRemaining,
+      getTimeRemaining,
 
   
 
-    getInitials,
+      getInitials,
 
   
 
-  }: {
+    }: {
 
   
 
-    auction: Auction
+      auction: Auction
 
   
 
-    bids: Bid[]
+      bids: Bid[]
 
   
 
-    onClose: () => void
+      onClose: () => void
 
   
 
-    getVehicleName: (a: Auction) => string
+      getVehicleName: (a: Auction) => string
 
   
 
-    getPrimaryPhoto: (p: Array<{ photo_url: string; is_primary: boolean }>) => string | undefined
+      getPrimaryPhoto: (p: Array<{ photo_url: string; is_primary: boolean }>) => string | undefined
 
   
 
-    getTimeRemaining: (t: string | null) => { text: string; urgent: boolean; ended: boolean }
+      getTimeRemaining: (t: string | null) => { text: string; urgent: boolean; ended: boolean }
 
   
 
-    getInitials: (n: string | null, e: string) => string
+      getInitials: (n: string | null, e: string) => string
 
   
 
-  }) {
+    }) {
 
   
 
-    const timeInfo = getTimeRemaining(auction.end_time)
+      const timeInfo = getTimeRemaining(auction.end_time)
 
   
 
-    const isLive = auction.auction_statuses?.status_name === 'live'
+      const isLive = auction.auction_statuses?.status_name === 'live'
 
   
 
-    const vehicle = auction.auction_vehicles
-
-  
-
-  
-
-  
-
-    // Find winner if ended
-
-  
-
-    const winner = bids.length > 0 ? bids[0] : null
-
-  
-
-    const isEnded = timeInfo.ended || auction.auction_statuses?.status_name === 'ended'
+      const vehicle = auction.auction_vehicles
 
   
 
@@ -1819,79 +1859,279 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-    return (
+      // Find winner if ended
 
   
 
-      <div className="fixed inset-0 bg-white z-[60] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+      const winner = bids.length > 0 ? bids[0] : null
 
   
 
-        {/* Header Bar */}
+      const isEnded = timeInfo.ended || auction.auction_statuses?.status_name === 'ended'
 
   
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm z-10">
+  
 
   
 
-          <div className="flex items-center gap-4">
+      // Group photos by category
 
   
 
-            <button
+      type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other'
 
   
 
-              onClick={onClose}
+      const photos = auction.auction_photos || []
 
   
 
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+      
 
   
 
-            >
+      const photosByCategory = photos.reduce((acc, photo) => {
 
   
 
-              <ChevronRight className="w-6 h-6 rotate-180" />
+          const cat = (photo.category || 'other').toLowerCase() as PhotoCategory
 
   
 
-            </button>
+          if (!acc[cat]) acc[cat] = []
 
   
 
-            <div>
+          acc[cat].push(photo)
 
   
 
-               <h1 className="text-xl font-bold text-gray-900">{getVehicleName(auction)}</h1>
+          return acc
 
   
 
-               <div className="flex items-center gap-2 text-sm text-gray-500">
+      }, {} as Record<PhotoCategory, typeof photos>)
 
   
 
-                  <span className="font-medium">ID: {auction.id.slice(0, 8)}</span>
+      
 
   
 
-                  <span>•</span>
+      const categories: { key: PhotoCategory; label: string }[] = [
 
   
 
-                  <span className="flex items-center gap-1">
+          { key: 'front', label: 'Front' },
 
   
 
-                     <Users className="w-4 h-4" /> {auction.users?.full_name || auction.users?.email}
+          { key: 'rear', label: 'Rear' },
 
   
 
-                  </span>
+          { key: 'side', label: 'Side' },
+
+  
+
+          { key: 'interior', label: 'Interior' },
+
+  
+
+          { key: 'engine', label: 'Engine' },
+
+  
+
+          { key: 'other', label: 'Other' },
+
+  
+
+      ]
+
+  
+
+  
+
+  
+
+      return (
+
+  
+
+        <div className="fixed inset-0 bg-white z-[60] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+
+  
+
+          {/* Header Bar */}
+
+  
+
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm z-10">
+
+  
+
+            <div className="flex items-center gap-4">
+
+  
+
+              <button
+
+  
+
+                onClick={onClose}
+
+  
+
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+
+  
+
+              >
+
+  
+
+                <ChevronRight className="w-6 h-6 rotate-180" />
+
+  
+
+              </button>
+
+  
+
+              <div>
+
+  
+
+                 <h1 className="text-xl font-bold text-gray-900">{getVehicleName(auction)}</h1>
+
+  
+
+                 <div className="flex items-center gap-2 text-sm text-gray-500">
+
+  
+
+                    <span className="font-medium">ID: {auction.id.slice(0, 8)}</span>
+
+  
+
+                    <span>â€¢</span>
+
+  
+
+                    <span className="flex items-center gap-1">
+
+  
+
+                       <Users className="w-4 h-4" /> {auction.users?.full_name || auction.users?.email}
+
+  
+
+                    </span>
+
+  
+
+                 </div>
+
+  
+
+              </div>
+
+  
+
+            </div>
+
+  
+
+            <div className="flex items-center gap-4">
+
+  
+
+               {isEnded ? (
+
+  
+
+                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-bold border border-gray-200">
+
+  
+
+                   <span className="w-2 h-2 bg-red-500 rounded-full" />
+
+  
+
+                   AUCTION ENDED
+
+  
+
+                 </div>
+
+  
+
+               ) : isLive ? (
+
+  
+
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
+
+  
+
+                    <span className="w-2 h-2 bg-green-500 rounded-full" />
+
+  
+
+                    LIVE AUCTION
+
+  
+
+                  </div>
+
+  
+
+               ) : (
+
+  
+
+                 <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
+
+  
+
+               )}
+
+  
+
+               <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border ${
+
+  
+
+                  isEnded
+
+  
+
+                    ? 'bg-gray-100 border-gray-200 text-gray-600'
+
+  
+
+                    : timeInfo.urgent && isLive
+
+  
+
+                      ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
+
+  
+
+                      : 'bg-gray-50 border-gray-200 text-gray-700'
+
+  
+
+               }`}>
+
+  
+
+                  <Clock className="w-5 h-5" />
+
+  
+
+                  {isEnded ? 'Ended' : `${timeInfo.text} remaining`}
 
   
 
@@ -1907,835 +2147,107 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-          <div className="flex items-center gap-4">
-
-  
-
-             {isEnded ? (
-
-  
-
-               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-bold border border-gray-200">
-
-  
-
-                 <span className="w-2 h-2 bg-red-500 rounded-full" />
-
-  
-
-                 AUCTION ENDED
-
-  
-
-               </div>
-
-  
-
-             ) : isLive ? (
-
-  
-
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
-
-  
-
-                  <span className="w-2 h-2 bg-green-500 rounded-full" />
-
-  
-
-                  LIVE AUCTION
-
-  
-
-                </div>
-
-  
-
-             ) : (
-
-  
-
-               <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
-
-  
-
-             )}
-
-  
-
-             <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border ${
-
-  
-
-                isEnded
-
-  
-
-                  ? 'bg-gray-100 border-gray-200 text-gray-600'
-
-  
-
-                  : timeInfo.urgent && isLive
-
-  
-
-                    ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
-
-  
-
-                    : 'bg-gray-50 border-gray-200 text-gray-700'
-
-  
-
-             }`}>
-
-  
-
-                <Clock className="w-5 h-5" />
-
-  
-
-                {isEnded ? 'Ended' : `${timeInfo.text} remaining`}
-
-  
-
-             </div>
-
-  
-
-          </div>
-
-  
-
-        </div>
-
-  
-
-  
-
-  
-
-        {/* Main Content */}
-
-  
-
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-
-  
-
-          <div className="max-w-7xl mx-auto p-6 space-y-6">
-
-  
-
-             
-
-  
-
-             {/* Winner Banner if Ended */}
-
-  
-
-             {isEnded && winner && (
-
-  
-
-               <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 rounded-2xl p-1 shadow-lg animate-in slide-in-from-top-4 duration-500">
-
-  
-
-                 <div className="bg-white rounded-xl p-6 flex items-center justify-between">
-
-  
-
-                   <div className="flex items-center gap-6">
-
-  
-
-                      <div className="relative">
-
-  
-
-                         <div className="w-20 h-20 rounded-full bg-yellow-100 flex items-center justify-center">
-
-  
-
-                            <Trophy className="w-10 h-10 text-yellow-600" />
-
-  
-
-                         </div>
-
-  
-
-                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm">
-
-  
-
-                            WINNER
-
-  
-
-                         </div>
-
-  
-
-                      </div>
-
-  
-
-                      <div>
-
-  
-
-                         <h2 className="text-2xl font-bold text-gray-900 mb-1">Auction Won by {winner.users?.full_name || 'Unknown'}</h2>
-
-  
-
-                         <p className="text-yellow-600 font-bold">Winning Bid: ₱{winner.bid_amount.toLocaleString()}</p>
-
-  
-
-                      </div>
-
-  
-
-                   </div>
-
-  
-
-                   <div className="text-right">
-
-  
-
-                      <p className="text-gray-500 text-sm mb-1">Ended on</p>
-
-  
-
-                      <p className="text-gray-900 font-medium">{new Date(auction.end_time!).toLocaleString()}</p>
-
-  
-
-                   </div>
-
-  
-
-                 </div>
-
-  
-
-               </div>
-
-  
-
-             )}
-
-  
-
-  
-
-  
-
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-  
-
-                
-
-  
-
-               {/* Left Column: Media & Vehicle Info */}
-
-  
-
-               <div className="lg:col-span-2 space-y-6">
-
-  
-
-                  {/* Hero Image */}
-
-  
-
-                  <div className="rounded-2xl overflow-hidden shadow-sm border bg-white border-gray-200">
-
-  
-
-                    <div className="aspect-video relative bg-gray-50">
-
-  
-
-                      {getPrimaryPhoto(auction.auction_photos) ? (
-
-  
-
-                        <img
-
-  
-
-                          src={getPrimaryPhoto(auction.auction_photos)}
-
-  
-
-                          alt={getVehicleName(auction)}
-
-  
-
-                          className={`w-full h-full object-contain ${isEnded ? 'opacity-90 grayscale-[0.2]' : ''}`}
-
-  
-
-                        />
-
-  
-
-                      ) : (
-
-  
-
-                        <div className="w-full h-full flex items-center justify-center">
-
-  
-
-                          <Car className="w-24 h-24 text-gray-300" />
-
-  
-
-                        </div>
-
-  
-
-                      )}
-
-  
-
-                      {isEnded && (
-
-  
-
-                        <div className="absolute inset-0 bg-white/20 flex items-center justify-center backdrop-blur-[2px]">
-
-  
-
-                          <div className="bg-white/90 backdrop-blur-md border border-gray-200 shadow-xl p-6 rounded-2xl text-center transform rotate-[-5deg]">
-
-  
-
-                             <p className="text-4xl font-black text-red-600 tracking-widest uppercase border-4 border-red-600 px-4 py-2 rounded-lg">SOLD</p>
-
-  
-
-                             <p className="text-gray-900 mt-2 font-bold text-lg">₱{auction.current_price?.toLocaleString()}</p>
-
-  
-
-                          </div>
-
-  
-
-                        </div>
-
-  
-
-                      )}
-
-  
-
-                    </div>
-
-  
-
-                  </div>
-
-  
-
-  
-
-  
-
-                  {/* Quick Stats Grid */}
-
-  
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-  
-
-                    <div className="p-4 rounded-xl border shadow-sm bg-white border-gray-200">
-
-  
-
-                       <p className="text-xs uppercase font-medium mb-1 text-gray-500">Final Price</p>
-
-  
-
-                       <p className={`text-2xl font-bold ${isEnded ? 'text-gray-900' : 'text-purple-600'}`}>₱{auction.current_price?.toLocaleString()}</p>
-
-  
-
-                    </div>
-
-  
-
-                    <div className="p-4 rounded-xl border shadow-sm bg-white border-gray-200">
-
-  
-
-                       <p className="text-xs uppercase font-medium mb-1 text-gray-500">Starting Price</p>
-
-  
-
-                       <p className="text-xl font-bold text-gray-900">₱{auction.starting_price?.toLocaleString()}</p>
-
-  
-
-                    </div>
-
-  
-
-                    <div className="p-4 rounded-xl border shadow-sm bg-white border-gray-200">
-
-  
-
-                       <p className="text-xs uppercase font-medium mb-1 text-gray-500">Total Bids</p>
-
-  
-
-                       <div className="flex items-center gap-2">
-
-  
-
-                          <Gavel className="w-5 h-5 text-gray-400" />
-
-  
-
-                          <p className="text-xl font-bold text-gray-900">{auction.total_bids}</p>
-
-  
-
-                       </div>
-
-  
-
-                    </div>
-
-  
-
-                     <div className="p-4 rounded-xl border shadow-sm bg-white border-gray-200">
-
-  
-
-                       <p className="text-xs uppercase font-medium mb-1 text-gray-500">Views</p>
-
-  
-
-                       <div className="flex items-center gap-2">
-
-  
-
-                          <Eye className="w-5 h-5 text-gray-400" />
-
-  
-
-                          <p className="text-xl font-bold text-gray-900">{auction.view_count}</p>
-
-  
-
-                       </div>
-
-  
-
-                    </div>
-
-  
-
-                  </div>
-
-  
-
-  
-
-  
-
-                  {/* Vehicle Specs */}
-
-  
-
-                  {vehicle && (
-
-  
-
-                    <div className="rounded-xl border shadow-sm overflow-hidden bg-white border-gray-200">
-
-  
-
-                      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-
-  
-
-                         <h3 className="font-semibold flex items-center gap-2 text-gray-900">
-
-  
-
-                            <Car className="w-5 h-5 text-gray-500" />
-
-  
-
-                            Vehicle Specifications
-
-  
-
-                         </h3>
-
-  
-
-                      </div>
-
-  
-
-                      <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-
-  
-
-                          {[
-
-  
-
-                            { label: 'Brand', value: vehicle.brand },
-
-  
-
-                            { label: 'Model', value: vehicle.model },
-
-  
-
-                            { label: 'Variant', value: vehicle.variant },
-
-  
-
-                            { label: 'Year', value: vehicle.year },
-
-  
-
-                            { label: 'Condition', value: vehicle.condition },
-
-  
-
-                            { label: 'Mileage', value: vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : null },
-
-  
-
-                            { label: 'Transmission', value: vehicle.transmission },
-
-  
-
-                            { label: 'Fuel Type', value: vehicle.fuel_type },
-
-  
-
-                            { label: 'Color', value: vehicle.exterior_color },
-
-  
-
-                          ].map((item) => item.value && (
-
-  
-
-                             <div key={item.label}>
-
-  
-
-                                <p className="text-sm mb-1 text-gray-500">{item.label}</p>
-
-  
-
-                                <p className="font-medium text-gray-900">{item.value}</p>
-
-  
-
-                             </div>
-
-  
-
-                          ))}
-
-  
-
-                      </div>
-
-  
-
-                    </div>
-
-  
-
-                  )}
-
-  
-
-                  
-
-  
-
-                  {/* Description */}
-
-  
-
-                  {auction.description && (
-
-  
-
-                     <div className="rounded-xl border shadow-sm p-6 bg-white border-gray-200">
-
-  
-
-                        <h3 className="font-semibold mb-4 text-gray-900">Description</h3>
-
-  
-
-                        <p className="whitespace-pre-wrap leading-relaxed text-gray-600">{auction.description}</p>
-
-  
-
-                     </div>
-
-  
-
-                  )}
-
-  
-
-               </div>
-
-  
-
-  
-
-  
-
-               {/* Right Column: Bid History & Admin Actions */}
-
-  
-
-               <div className="space-y-6">
-
-  
-
-                  {/* Bid History */}
-
-  
-
-                  <div className="rounded-xl border shadow-sm flex flex-col h-[600px] bg-white border-gray-200">
-
-  
-
-                     <div className="px-6 py-4 border-b flex items-center justify-between border-gray-100 bg-gray-50/50">
-
-  
-
-                        <h3 className="font-semibold flex items-center gap-2 text-gray-900">
-
-  
-
-                           <TrendingUp className="w-5 h-5 text-purple-600" />
-
-  
-
-                           Bid History
-
-  
-
-                        </h3>
-
-  
-
-                        <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-
-  
-
-                           {bids.length} Bids
-
-  
-
-                        </span>
-
-  
-
-                     </div>
-
-  
-
-                     
-
-  
-
-                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
-
-  
-
-                        {bids.length === 0 ? (
-
-  
-
-                          <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-500">
-
-  
-
-                             <Gavel className="w-12 h-12 text-gray-300 mb-3" />
-
-  
-
-                             <p>No bids placed</p>
-
-  
-
-                          </div>
-
-  
-
-                        ) : (
-
-  
-
-                          bids.map((bid, index) => (
-
-  
-
-                             <div
-
-  
-
-                               key={bid.id}
-
-  
-
-                               className={`p-4 rounded-xl transition-all ${
-
-  
-
-                                 index === 0
-
-  
-
-                                   ? isEnded 
-
-  
-
-                                      ? 'bg-yellow-50 border border-yellow-200 shadow-sm'
-
-  
-
-                                      : 'bg-green-50 border border-green-200 shadow-sm'
-
-  
-
-                                   : 'bg-white border border-gray-100 hover:border-gray-300'
-
-  
-
-                               }`}
-
   
-
-                             >
 
   
 
-                               <div className="flex justify-between items-start mb-2">
+          {/* Content */}
 
   
 
-                                  <div className="flex items-center gap-3">
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
 
   
 
-                                     <div className="relative">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
 
   
 
-                                        {bid.users?.profile_image_url ? (
+                {/* Left Column: Media & Vehicle Info */}
 
   
 
-                                          <img
+                <div className="lg:col-span-2 space-y-6">
 
   
 
-                                            src={bid.users.profile_image_url}
+                   {/* Photo Grid (Categorized) */}
 
   
 
-                                            alt="Bidder"
+                   <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
 
   
 
-                                            className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
+                      <h3 className="font-semibold mb-4 text-gray-900 flex items-center gap-2">
 
   
 
-                                          />
+                         <Eye className="w-5 h-5 text-gray-400" />
 
   
 
-                                        ) : (
+                         Vehicle Photos
 
   
 
-                                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm ${
+                      </h3>
 
   
 
-                                            index === 0 
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 
   
 
-                                               ? isEnded ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700' 
+                         {categories.map((cat) => (
 
   
 
-                                               : 'bg-gray-100 text-gray-600'
+                            <div key={cat.key} className="space-y-2">
 
   
 
-                                          }`}>
+                               <p className="text-xs font-medium text-gray-500 uppercase">{cat.label}</p>
 
   
 
-                                            <span className="font-bold">
+                               <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
 
   
 
-                                              {getInitials(bid.users?.full_name || null, bid.users?.email || 'U')}
+                                  {photosByCategory[cat.key]?.[0] ? (
 
   
 
-                                            </span>
+                                     <img 
 
   
 
-                                          </div>
+                                        src={photosByCategory[cat.key]![0].photo_url} 
 
   
 
-                                        )}
+                                        alt={cat.label}
 
   
 
-                                        {index === 0 && (
+                                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
 
   
 
-                                           <div className="absolute -top-2 -right-2 bg-yellow-400 p-1 rounded-full border-2 border-white shadow-sm">
+                                     />
 
   
 
-                                              <Trophy className="w-3 h-3 text-white fill-white" />
+                                  ) : (
 
   
 
-                                           </div>
+                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
 
   
 
-                                        )}
+                                        <Car className="w-8 h-8 opacity-50" />
 
   
 
@@ -2743,95 +2255,23 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                                     <div>
+                                  )}
 
   
 
-                                        <p className="font-bold text-sm text-gray-900">
+                                  {photosByCategory[cat.key]?.length > 1 && (
 
   
 
-                                           {bid.users?.full_name || bid.users?.email}
+                                     <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
 
   
 
-                                        </p>
-
-  
-
-                                        <p className="text-xs text-gray-500">
-
-  
-
-                                           {new Date(bid.created_at).toLocaleString()}
-
-  
-
-                                        </p>
+                                        +{photosByCategory[cat.key]!.length - 1}
 
   
 
                                      </div>
-
-  
-
-                                  </div>
-
-  
-
-                               </div>
-
-  
-
-                               
-
-  
-
-                               <div className="flex items-center justify-between mt-2 pl-13">
-
-  
-
-                                  <span className={`text-lg font-bold ${
-
-  
-
-                                     index === 0 
-
-  
-
-                                        ? isEnded ? 'text-yellow-600' : 'text-green-600' 
-
-  
-
-                                        : 'text-gray-700'
-
-  
-
-                                  }`}>
-
-  
-
-                                     ₱{bid.bid_amount.toLocaleString()}
-
-  
-
-                                  </span>
-
-  
-
-                                  {bid.is_auto_bid && (
-
-  
-
-                                     <span className="text-xs px-2 py-1 rounded-md flex items-center gap-1 bg-gray-100 text-gray-600">
-
-  
-
-                                        <Zap className="w-3 h-3" /> Auto
-
-  
-
-                                     </span>
 
   
 
@@ -2843,23 +2283,19 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                             </div>
+                            </div>
 
   
 
-                          ))
+                         ))}
 
   
 
-                        )}
+                      </div>
 
   
 
-                     </div>
-
-  
-
-                  </div>
+                   </div>
 
   
 
@@ -2867,79 +2303,563 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                  {/* Additional Metadata Card */}
+                   {/* Vehicle Details */}
 
   
 
-                  <div className="rounded-xl border shadow-sm p-6 space-y-4 bg-white border-gray-200">
+                   <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
 
   
 
-                     <h3 className="font-semibold mb-2 text-gray-900">Auction Settings</h3>
+                      <h3 className="font-semibold mb-4 text-gray-900">Vehicle Specifications</h3>
 
   
 
-                     <div className="flex justify-between py-2 border-b border-gray-100">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8">
 
   
 
-                        <span className="text-sm text-gray-500">Deposit Required</span>
+                         {[
 
   
 
-                        <span className="font-medium text-gray-900">₱{auction.deposit_amount?.toLocaleString()}</span>
+                            { label: 'Make', value: vehicle?.brand },
 
   
 
-                     </div>
+                            { label: 'Model', value: vehicle?.model },
 
   
 
-                     <div className="flex justify-between py-2 border-b border-gray-100">
+                            { label: 'Variant', value: vehicle?.variant },
 
   
 
-                        <span className="text-sm text-gray-500">Bid Increment</span>
+                            { label: 'Year', value: vehicle?.year },
 
   
 
-                        <span className="font-medium text-gray-900">₱{auction.bid_increment?.toLocaleString()}</span>
+                            { label: 'Mileage', value: vehicle?.mileage ? `${vehicle.mileage.toLocaleString()} km` : null },
 
   
 
-                     </div>
+                            { label: 'Condition', value: vehicle?.condition },
 
   
 
-                     <div className="flex justify-between py-2 border-b border-gray-100">
+                            { label: 'Color', value: vehicle?.exterior_color },
 
   
 
-                        <span className="text-sm text-gray-500">Reserve Price</span>
+                            { label: 'Transmission', value: vehicle?.transmission },
 
   
 
-                        <span className="font-medium text-gray-900">{auction.reserve_price ? `₱${auction.reserve_price.toLocaleString()}` : 'None'}</span>
+                            { label: 'Fuel', value: vehicle?.fuel_type },
 
   
 
-                     </div>
+                         ].map((item) => (
 
   
 
-                  </div>
+                            <div key={item.label}>
 
   
 
-               </div>
+                               <p className="text-xs text-gray-500 uppercase">{item.label}</p>
 
   
 
-             </div>
+                               <p className="font-medium text-gray-900">{item.value || '-'}</p>
 
   
 
-          </div>
+                            </div>
+
+  
+
+                         ))}
+
+  
+
+                      </div>
+
+  
+
+                   </div>
+
+  
+
+  
+
+  
+
+                   {/* Description */}
+
+  
+
+                   {auction.description && (
+
+  
+
+                      <div className="rounded-xl border shadow-sm p-6 bg-white border-gray-200">
+
+  
+
+                         <h3 className="font-semibold mb-4 text-gray-900">Description</h3>
+
+  
+
+                         <p className="whitespace-pre-wrap leading-relaxed text-gray-600">{auction.description}</p>
+
+  
+
+                      </div>
+
+  
+
+                   )}
+
+  
+
+                </div>
+
+  
+
+  
+
+  
+
+                {/* Right Column: Bid History & Admin Actions */}
+
+  
+
+                <div className="space-y-6">
+
+  
+
+                   {/* Bid History */}
+
+  
+
+                   <div className="rounded-xl border shadow-sm flex flex-col h-[600px] bg-white border-gray-200">
+
+  
+
+                      <div className="px-6 py-4 border-b flex items-center justify-between border-gray-100 bg-gray-50/50">
+
+  
+
+                         <h3 className="font-semibold flex items-center gap-2 text-gray-900">
+
+  
+
+                            <TrendingUp className="w-5 h-5 text-purple-600" />
+
+  
+
+                            Bid History
+
+  
+
+                         </h3>
+
+  
+
+                         <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+
+  
+
+                            {bids.length} Bids
+
+  
+
+                         </span>
+
+  
+
+                      </div>
+
+  
+
+  
+
+  
+
+                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+  
+
+                         {bids.length === 0 ? (
+
+  
+
+                           <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-500">
+
+  
+
+                              <Gavel className="w-12 h-12 text-gray-300 mb-3" />
+
+  
+
+                              <p>No bids placed</p>
+
+  
+
+                           </div>
+
+  
+
+                         ) : (
+
+  
+
+                           bids.map((bid, index) => (
+
+  
+
+                              <div
+
+  
+
+                                key={bid.id}
+
+  
+
+                                className={`p-4 rounded-xl transition-all ${
+
+  
+
+                                  index === 0
+
+  
+
+                                    ? isEnded
+
+  
+
+                                       ? 'bg-yellow-50 border border-yellow-200 shadow-sm'
+
+  
+
+                                       : 'bg-green-50 border border-green-200 shadow-sm'
+
+  
+
+                                    : 'bg-white border border-gray-100 hover:border-gray-300'
+
+  
+
+                                }`}
+
+  
+
+                              >
+
+  
+
+                                <div className="flex justify-between items-start mb-2">
+
+  
+
+                                   <div className="flex items-center gap-3">
+
+  
+
+                                      <div className="relative">
+
+  
+
+                                         {bid.users?.profile_image_url ? (
+
+  
+
+                                           <img
+
+  
+
+                                             src={bid.users.profile_image_url}
+
+  
+
+                                             alt="Bidder"
+
+  
+
+                                             className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
+
+  
+
+                                           />
+
+  
+
+                                         ) : (
+
+  
+
+                                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm ${
+
+  
+
+                                             index === 0
+
+  
+
+                                                ? isEnded ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+
+  
+
+                                                : 'bg-gray-100 text-gray-600'
+
+  
+
+                                           }`}>
+
+  
+
+                                             <span className="font-bold">
+
+  
+
+                                               {getInitials(bid.users?.full_name || null, bid.users?.email || 'U')}
+
+  
+
+                                             </span>
+
+  
+
+                                           </div>
+
+  
+
+                                         )}
+
+  
+
+                                         {index === 0 && (
+
+  
+
+                                            <div className="absolute -top-2 -right-2 bg-yellow-400 p-1 rounded-full border-2 border-white shadow-sm">
+
+  
+
+                                               <Trophy className="w-3 h-3 text-white fill-white" />       
+
+  
+
+                                            </div>
+
+  
+
+                                         )}
+
+  
+
+                                      </div>
+
+  
+
+                                      <div>
+
+  
+
+                                         <p className="font-bold text-sm text-gray-900">
+
+  
+
+                                            {bid.users?.full_name || bid.users?.email}
+
+  
+
+                                         </p>
+
+  
+
+                                         <p className="text-xs text-gray-500">
+
+  
+
+                                            {new Date(bid.created_at).toLocaleString()}
+
+  
+
+                                         </p>
+
+  
+
+                                      </div>
+
+  
+
+                                   </div>
+
+  
+
+                                </div>
+
+  
+
+  
+
+  
+
+                                <div className="flex items-center justify-between mt-2 pl-13">
+
+  
+
+                                   <span className={`text-lg font-bold ${
+
+  
+
+                                      index === 0
+
+  
+
+                                         ? isEnded ? 'text-yellow-600' : 'text-green-600'
+
+  
+
+                                         : 'text-gray-700'
+
+  
+
+                                   }`}>
+
+  
+
+                                      â‚±{bid.bid_amount.toLocaleString()}
+
+  
+
+                                   </span>
+
+  
+
+                                   {bid.is_auto_bid && (
+
+  
+
+                                      <span className="text-xs px-2 py-1 rounded-md flex items-center gap-1 bg-gray-100 text-gray-600">
+
+  
+
+                                         <Zap className="w-3 h-3" /> Auto
+
+  
+
+                                      </span>
+
+  
+
+                                   )}
+
+  
+
+                                </div>
+
+  
+
+                              </div>
+
+  
+
+                           ))
+
+  
+
+                         )}
+
+  
+
+                      </div>
+
+  
+
+                   </div>
+
+  
+
+  
+
+  
+
+                   {/* Additional Metadata Card */}
+
+  
+
+                   <div className="rounded-xl border shadow-sm p-6 space-y-4 bg-white border-gray-200">   
+
+  
+
+                      <h3 className="font-semibold mb-2 text-gray-900">Auction Settings</h3>
+
+  
+
+                      <div className="flex justify-between py-2 border-b border-gray-100">
+
+  
+
+                         <span className="text-sm text-gray-500">Deposit Required</span>
+
+  
+
+                         <span className="font-medium text-gray-900">â‚±{auction.deposit_amount?.toLocaleString()}</span>
+
+  
+
+                      </div>
+
+  
+
+                      <div className="flex justify-between py-2 border-b border-gray-100">
+
+  
+
+                         <span className="text-sm text-gray-500">Bid Increment</span>
+
+  
+
+                         <span className="font-medium text-gray-900">â‚±{auction.bid_increment?.toLocaleString()}</span>
+
+  
+
+                      </div>
+
+  
+
+                      <div className="flex justify-between py-2 border-b border-gray-100">
+
+  
+
+                         <span className="text-sm text-gray-500">Reserve Price</span>
+
+  
+
+                         <span className="font-medium text-gray-900">{auction.reserve_price ? `â‚±${auction.reserve_price.toLocaleString()}` : 'None'}</span>
+
+  
+
+                      </div>
+
+  
+
+                   </div>
+
+  
+
+                </div>
+
+  
+
+              </div>
+
+  
+
+           </div>
 
   
 
@@ -2947,18 +2867,9 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-      </div>
+      )
 
   
 
-    )
+    }
 
-  
-
-  }
-
-  
-
-  
-
-  

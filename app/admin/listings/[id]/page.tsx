@@ -36,11 +36,27 @@ export default async function ListingDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
+  
   const [listing, statuses] = await Promise.all([getListing(id), getStatuses()])
 
   if (!listing) {
     notFound()
   }
 
-  return <ListingDetailClient listing={listing} statuses={statuses} />
+  // Get current admin user ID for moderation
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: adminUser } = await supabase
+    .from('admin_users')
+    .select('id')
+    .eq('user_id', user?.id)
+    .single()
+
+  return (
+    <ListingDetailClient 
+      listing={listing} 
+      statuses={statuses} 
+      adminUserId={adminUser?.id || null} 
+    />
+  )
 }

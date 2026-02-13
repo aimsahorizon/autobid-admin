@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User, Shield, Key, Loader2, CheckCircle } from 'lucide-react'
+import { User, Shield, Key, Loader2, CheckCircle, Mail, Calendar } from 'lucide-react'
 
 interface SettingsClientProps {
   adminUser: {
@@ -61,150 +61,173 @@ export default function SettingsClient({ adminUser }: SettingsClientProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Profile Section */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Content */}
       <div className="lg:col-span-2 space-y-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
-          <div className="flex items-center gap-6 mb-6">
-            {adminUser?.users?.profile_image_url ? (
-              <img
-                src={adminUser.users.profile_image_url}
-                alt="Profile"
-                className="w-20 h-20 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-medium text-purple-700">
-                  {getInitials(adminUser?.users?.full_name || null, adminUser?.users?.email || 'A')}
-                </span>
+        {/* Profile Card */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="h-32 bg-gradient-to-r from-gray-50 to-gray-100"></div>
+          <div className="px-8 pb-8">
+            <div className="relative flex justify-between items-end -mt-12 mb-6">
+              <div className="bg-white p-1.5 rounded-full ring-1 ring-gray-100">
+                {adminUser?.users?.profile_image_url ? (
+                  <img
+                    src={adminUser.users.profile_image_url}
+                    alt="Profile"
+                    className="w-24 h-24 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-sm">
+                    <span className="text-3xl font-bold">
+                      {getInitials(adminUser?.users?.full_name || null, adminUser?.users?.email || 'A')}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900">
-                {adminUser?.users?.full_name || 'Admin User'}
-              </h3>
-              <p className="text-gray-500">{adminUser?.users?.email}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+              <div className="mb-1">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-semibold border border-purple-100">
                   <Shield className="w-3 h-3" />
                   {adminUser?.admin_roles?.display_name || 'Administrator'}
                 </span>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Role</p>
-              <p className="font-medium text-gray-900 mt-1">
-                {adminUser?.admin_roles?.display_name || 'Administrator'}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Member Since</p>
-              <p className="font-medium text-gray-900 mt-1">
-                {adminUser?.users?.created_at
-                  ? new Date(adminUser.users.created_at).toLocaleDateString()
-                  : 'N/A'}
-              </p>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {adminUser?.users?.full_name || 'Admin User'}
+              </h2>
+              <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+                <div className="flex items-center gap-1.5">
+                  <Mail className="w-4 h-4" />
+                  {adminUser?.users?.email}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4" />
+                  Joined {adminUser?.users?.created_at ? new Date(adminUser.users.created_at).toLocaleDateString() : 'N/A'}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Change Password */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Change Password</h2>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-8">
+          <div className="flex items-center gap-3 mb-6">
+             <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                <Key className="w-5 h-5" />
+             </div>
+             <div>
+                <h2 className="text-lg font-bold text-gray-900">Security</h2>
+                <p className="text-sm text-gray-500">Update your password</p>
+             </div>
+          </div>
+          
+          <form onSubmit={handlePasswordChange} className="space-y-5 max-w-md">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
                 {error}
               </div>
             )}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
                 Password updated successfully
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Current Password
               </label>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none transition-all text-sm"
+                placeholder="••••••••"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 New Password
               </label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none transition-all text-sm"
+                placeholder="Minimum 8 characters"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Confirm New Password
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none transition-all text-sm"
+                placeholder="••••••••"
               />
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <Key className="w-5 h-5" />
-                  Update Password
-                </>
-              )}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Password'
+                )}
+              </button>
+            </div>
           </form>
         </div>
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar Info */}
       <div className="space-y-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Info</h2>
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Account Status</h2>
           <div className="space-y-4">
-            <div className="flex items-center gap-3 text-gray-600">
-              <User className="w-5 h-5 text-gray-400" />
-              <span>Logged in as admin</span>
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-green-500">
+                <CheckCircle className="w-4 h-4" />
+              </div>
+              <div>
+                 <p className="text-sm font-medium text-gray-900">Active</p>
+                 <p className="text-xs text-gray-500">Full access granted</p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-gray-600">
-              <Shield className="w-5 h-5 text-gray-400" />
-              <span>Full admin privileges</span>
+            
+             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center text-purple-500">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                 <p className="text-sm font-medium text-gray-900">Admin</p>
+                 <p className="text-xs text-gray-500">System management</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
-          <h3 className="font-semibold text-purple-900 mb-2">AutoBid Admin</h3>
-          <p className="text-sm text-purple-700">
+        <div className="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-2xl p-6 text-white text-center">
+          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+             <Shield className="w-6 h-6 text-purple-200" />
+          </div>
+          <h3 className="font-bold mb-1">AutoBid Admin</h3>
+          <p className="text-sm text-purple-200 mb-4">
             Version 1.0.0
           </p>
-          <p className="text-xs text-purple-600 mt-2">
+          <div className="text-xs text-white/40 border-t border-white/10 pt-4">
             Built with Next.js & Supabase
-          </p>
+          </div>
         </div>
       </div>
     </div>

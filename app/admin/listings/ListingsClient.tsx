@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Search, Car, Eye, Gavel, Star, Trash2, CheckSquare, Square, AlertTriangle, Loader2, Archive, Shield } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { bulkDeleteListings, deleteAllListings } from './actions'
+import { createClient } from '@/lib/supabase/client'
 
 interface Listing {
   id: string
@@ -15,6 +16,7 @@ interface Listing {
   total_bids: number
   view_count: number
   is_featured: boolean
+  is_active: boolean
   start_time: string | null
   end_time: string | null
   created_at: string
@@ -100,6 +102,30 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
     } else {
       setSelectedIds(new Set(filteredListings.map(l => l.id)))
     }
+  }
+
+  const handleBulkActivate = async (active: boolean) => {
+    if (selectedIds.size === 0) return
+    setLoading(true)
+    const supabase = createClient()
+    
+    const { error } = await supabase
+      .from('auctions')
+      .update({ is_active: active })
+      .in('id', Array.from(selectedIds))
+
+    if (!error) {
+       // Refresh locally or via router
+       setListings(prev => prev.map(l => selectedIds.has(l.id) ? { ...l, is_active: active } : l))
+       setSelectedIds(new Set())
+    }
+    setLoading(false)
+  }
+
+  const handleToggleSingleActive = async (id: string, currentStatus: boolean) => {
+     const supabase = createClient()
+     await supabase.from('auctions').update({ is_active: !currentStatus }).eq('id', id)
+     setListings(prev => prev.map(l => l.id === id ? { ...l, is_active: !currentStatus } : l))
   }
 
   const openDeleteModal = (listing: Listing | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
@@ -240,7 +266,7 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
               }`}
               title={isDeleteEnabled ? 'Disable Deletion' : 'Enable Deletion'}
             >
-              <Shield className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
               {isDeleteEnabled ? 'Enabled' : 'Delete'}
             </button>
              {isDeleteEnabled && (
@@ -264,6 +290,20 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
               {selectedIds.size} listing{selectedIds.size > 1 ? 's' : ''} selected
             </div>
             <div className="flex gap-2">
+                {/* Bulk Activate/Deactivate */}
+               <button
+                onClick={() => handleBulkActivate(true)}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+               >
+                 Activate
+               </button>
+               <button
+                onClick={() => handleBulkActivate(false)}
+                className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+               >
+                 Deactivate
+               </button>
+
                <button
                 onClick={() => setSelectedIds(new Set())}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
@@ -314,6 +354,8 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
               key={listing.id}
               onClick={() => router.push(`/admin/listings/${listing.id}`)}
               className={`group relative bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-all cursor-pointer ${
+                  !listing.is_active ? 'opacity-75 bg-gray-50' : ''
+              } ${
                   selectedIds.has(listing.id) ? 'border-purple-500 ring-2 ring-purple-500' : 'border-gray-200'
               }`}
             >
@@ -334,6 +376,17 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
                     )}
                   </button>
                 )}
+                
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        handleToggleSingleActive(listing.id, listing.is_active)
+                    }}
+                    className={`p-1 bg-white/80 rounded-full hover:bg-gray-100 transition-colors shadow-sm animate-in fade-in ${!listing.is_active ? 'text-red-500' : 'text-green-500'}`}
+                    title={listing.is_active ? 'Deactivate' : 'Activate'}
+                    >
+                        <Shield className="w-6 h-6" />
+                </button>
                 
                 {isDeleteEnabled && (
                    <button
@@ -362,8 +415,15 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
                     <Car className="w-16 h-16 text-gray-300" />
                   </div>
                 )}
+                
+                {!listing.is_active && (
+                   <div className="absolute top-3 left-3 z-10 bg-gray-800 text-white px-2 py-1 rounded-lg text-xs font-bold uppercase">
+                     Inactive
+                   </div>
+                )}
+                
                 {listing.is_featured && (
-                  <div className="absolute top-3 left-3 bg-yellow-500 text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
+                  <div className="absolute top-3 left-3 bg-yellow-500 text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 z-10">
                     <Star className="w-3 h-3" />
                     Featured
                   </div>

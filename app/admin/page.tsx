@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import StatsCard from '@/components/ui/StatsCard'
-import { Users, Car, FileCheck, Gavel, CreditCard, TrendingUp, Clock, AlertCircle } from 'lucide-react'
+import { Users, Car, FileCheck, Gavel, Clock, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -91,212 +91,186 @@ export default async function AdminDashboard() {
   ])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with AutoBid.</p>
+      <div className="flex items-end justify-between border-b border-gray-100 pb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Overview</h1>
+          <p className="text-gray-500 mt-2">Welcome back. Here's what's happening today.</p>
+        </div>
+        <div className="text-sm text-gray-400">
+          Last updated: {new Date().toLocaleTimeString()}
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard
           title="Total Users"
           value={stats.totalUsers.toLocaleString()}
           icon={Users}
-          color="purple"
         />
         <StatsCard
           title="Active Auctions"
           value={stats.activeAuctions.toLocaleString()}
           icon={Gavel}
-          color="green"
         />
         <StatsCard
           title="Pending Listings"
           value={stats.pendingListings.toLocaleString()}
           icon={Clock}
-          color="orange"
+          trend={stats.pendingListings > 0 ? { value: stats.pendingListings, isPositive: false } : undefined}
         />
         <StatsCard
           title="Pending KYC"
           value={stats.pendingKyc.toLocaleString()}
           icon={FileCheck}
-          color="blue"
+          trend={stats.pendingKyc > 0 ? { value: stats.pendingKyc, isPositive: false } : undefined}
         />
       </div>
 
-      {/* Quick Actions */}
-      {(stats.pendingListings > 0 || stats.pendingKyc > 0 || stats.pendingTransactions > 0) && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-purple-600" />
-            <div>
-              <p className="font-medium text-purple-900">Items requiring attention</p>
-              <p className="text-sm text-purple-700">
-                {stats.pendingListings > 0 && `${stats.pendingListings} pending listings`}
-                {stats.pendingListings > 0 && stats.pendingKyc > 0 && ' • '}
-                {stats.pendingKyc > 0 && `${stats.pendingKyc} pending KYC`}
-                {(stats.pendingListings > 0 || stats.pendingKyc > 0) && stats.pendingTransactions > 0 && ' • '}
-                {stats.pendingTransactions > 0 && `${stats.pendingTransactions} pending transactions`}
-              </p>
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        
+        {/* Left Column: Recent Listings (Takes up 2/3 space on large screens) */}
+        <div className="xl:col-span-2 space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Recent Listings</h2>
+                <p className="text-sm text-gray-500 mt-1">Latest vehicles submitted for auction</p>
+              </div>
+              <Link
+                href="/admin/listings"
+                className="group flex items-center gap-1 text-sm font-medium text-purple-600 hover:text-purple-700 transition-colors"
+              >
+                View all
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Listings */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Listings</h2>
-            <Link
-              href="/admin/listings"
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {recentListings.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                No listings yet
-              </div>
-            ) : (
-              recentListings.map((listing: Record<string, unknown>) => {
-                const vehicle = listing.auction_vehicles as Record<string, unknown> | null
-                const user = listing.users as Record<string, unknown> | null
-                const status = listing.auction_statuses as Record<string, unknown> | null
-                return (
-                  <Link
-                    key={listing.id as string}
-                    href={`/admin/listings/${listing.id}`}
-                    className="block px-6 py-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {String(vehicle?.year || '')}{' '}
-                          {String(vehicle?.brand || '')}{' '}
-                          {String(vehicle?.model || '')}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          by {String(user?.full_name || user?.email || 'Unknown')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <StatusBadge
-                          status={String(status?.status_name || 'draft')}
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                          ₱{(listing.starting_price as number)?.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Pending KYC */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Pending KYC Verification</h2>
-            <Link
-              href="/admin/kyc"
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {pendingKyc.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                No pending KYC submissions
-              </div>
-            ) : (
-              pendingKyc.map((kyc: Record<string, unknown>) => {
-                const user = kyc.users as Record<string, unknown> | null
-                const fullName = String(user?.full_name || 'Unknown User')
-                const initials = fullName
-                  .split(' ')
-                  .map((n: string) => n[0])
-                  .join('')
-                  .toUpperCase()
-                  .slice(0, 2) || 'U'
-                return (
-                  <Link
-                    key={kyc.id as string}
-                    href={`/admin/kyc/${kyc.id}`}
-                    className="block px-6 py-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium text-purple-700">
-                            {initials}
-                          </span>
+            
+            <div className="divide-y divide-gray-50">
+              {recentListings.length === 0 ? (
+                <div className="px-8 py-12 text-center text-gray-400">
+                  <Car className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                  No listings found
+                </div>
+              ) : (
+                recentListings.map((listing: Record<string, unknown>) => {
+                  const vehicle = listing.auction_vehicles as Record<string, unknown> | null
+                  const user = listing.users as Record<string, unknown> | null
+                  const status = listing.auction_statuses as Record<string, unknown> | null
+                  
+                  return (
+                    <Link
+                      key={listing.id as string}
+                      href={`/admin/listings/${listing.id}`}
+                      className="block px-8 py-5 hover:bg-gray-50/80 transition-all group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 group-hover:bg-purple-100 group-hover:text-purple-600 transition-colors">
+                            <Car className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
+                              {String(vehicle?.year || '')} {String(vehicle?.brand || '')} {String(vehicle?.model || '')}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Listed by {String(user?.full_name || user?.email || 'Unknown')}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {fullName}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {String(kyc.document_type || '').replace(/_/g, ' ')}
-                          </p>
+                        
+                        <div className="flex items-center gap-6">
+                          <div className="text-right hidden sm:block">
+                            <p className="text-sm font-medium text-gray-900">
+                              ₱{(listing.starting_price as number)?.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">Starting Price</p>
+                          </div>
+                          <StatusBadge status={String(status?.status_name || 'draft')} />
                         </div>
                       </div>
-                      <div className="text-right">
-                        <StatusBadge status="pending" />
-                        <p className="text-xs text-gray-500 mt-1">
-                          {typeof kyc.submitted_at === 'string'
-                            ? new Date(kyc.submitted_at).toLocaleDateString()
-                            : 'Not submitted'}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })
-            )}
+                    </Link>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Activity Overview */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Platform Overview</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <Car className="w-6 h-6 text-purple-600" />
+        {/* Right Column: Pending KYC & Action Items */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="px-6 py-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Pending KYC</h2>
+              <Link
+                href="/admin/kyc"
+                className="text-sm font-medium text-purple-600 hover:text-purple-700"
+              >
+                View all
+              </Link>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.totalListings}</p>
-            <p className="text-sm text-gray-500">Total Listings</p>
+            
+            <div className="divide-y divide-gray-50">
+              {pendingKyc.length === 0 ? (
+                <div className="px-6 py-12 text-center text-gray-400">
+                  <FileCheck className="w-10 h-10 mx-auto mb-3 text-gray-200" />
+                  All caught up!
+                </div>
+              ) : (
+                pendingKyc.map((kyc: Record<string, unknown>) => {
+                  const user = kyc.users as Record<string, unknown> | null
+                  const fullName = String(user?.full_name || 'Unknown User')
+                  const initials = fullName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
+                  
+                  return (
+                    <Link
+                      key={kyc.id as string}
+                      href={`/admin/kyc/${kyc.id}`}
+                      className="block px-6 py-4 hover:bg-gray-50/80 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                         <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 border border-gray-200">
+                              {initials}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{fullName}</p>
+                              <p className="text-xs text-gray-500">{String(kyc.document_type || '').replace(/_/g, ' ')}</p>
+                            </div>
+                         </div>
+                         <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-gray-400 pl-11">
+                         <span>Submitted {typeof kyc.submitted_at === 'string' ? new Date(kyc.submitted_at).toLocaleDateString() : ''}</span>
+                      </div>
+                    </Link>
+                  )
+                })
+              )}
+            </div>
           </div>
-          <div className="text-center">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <Gavel className="w-6 h-6 text-green-600" />
+
+          {/* Platform Summary / Quick Stats */}
+          <div className="bg-purple-900 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+               <Gavel className="w-32 h-32 transform rotate-12" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.activeAuctions}</p>
-            <p className="text-sm text-gray-500">Live Auctions</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <Users className="w-6 h-6 text-blue-600" />
+            <h3 className="text-lg font-bold mb-1 relative z-10">Platform Status</h3>
+            <p className="text-purple-200 text-sm mb-6 relative z-10">Real-time overview</p>
+            
+            <div className="grid grid-cols-2 gap-4 relative z-10">
+              <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+                <p className="text-2xl font-bold">{stats.totalListings}</p>
+                <p className="text-xs text-purple-200">Total Listings</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+                 <p className="text-2xl font-bold">{stats.pendingTransactions}</p>
+                 <p className="text-xs text-purple-200">Open Deals</p>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
-            <p className="text-sm text-gray-500">Registered Users</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-              <TrendingUp className="w-6 h-6 text-orange-600" />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.pendingTransactions}</p>
-            <p className="text-sm text-gray-500">Pending Deals</p>
           </div>
         </div>
       </div>
