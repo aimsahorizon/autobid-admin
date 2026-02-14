@@ -17,8 +17,10 @@ import {
   ChevronRight,
   Power,
   Camera,
+  AlertTriangle
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import Modal from '@/components/ui/Modal'
 
 interface ListingDetailClientProps {
   listing: Record<string, unknown>
@@ -26,7 +28,7 @@ interface ListingDetailClientProps {
   adminUserId: string | null
 }
 
-type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other'
+type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other' | 'exterior' | 'damage' | 'documents'
 
 export default function ListingDetailClient({ listing, statuses, adminUserId }: ListingDetailClientProps) {
   const router = useRouter()
@@ -34,6 +36,12 @@ export default function ListingDetailClient({ listing, statuses, adminUserId }: 
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [reviewNotes, setReviewNotes] = useState('')
   const [isActive, setIsActive] = useState(!!listing.is_active)
+  
+  // Modal State
+  const [actionModal, setActionModal] = useState<{ isOpen: boolean; type: 'approve' | 'reject' | null }>({
+    isOpen: false,
+    type: null
+  })
 
   const photos = (listing.auction_photos as Array<{ id: string; photo_url: string; is_primary: boolean; category: string }>) || []
   const vehicle = listing.auction_vehicles as Record<string, unknown>
@@ -52,17 +60,38 @@ export default function ListingDetailClient({ listing, statuses, adminUserId }: 
     { key: 'front', label: 'Front View' },
     { key: 'rear', label: 'Rear View' },
     { key: 'side', label: 'Side View' },
+    { key: 'exterior', label: 'Exterior (General)' },
     { key: 'interior', label: 'Interior' },
     { key: 'engine', label: 'Engine Bay' },
+    { key: 'damage', label: 'Damage / Defects' },
+    { key: 'documents', label: 'Documents' },
     { key: 'other', label: 'Other Photos' },
   ]
 
-  const handleStatusChange = async (newStatusName: string, notes?: string) => {
-    if (newStatusName === 'cancelled' && !notes?.trim()) {
-      alert('Please provide feedback for rejection.')
+  const openActionModal = (type: 'approve' | 'reject') => {
+    setActionModal({ isOpen: true, type })
+    setReviewNotes('')
+  }
+
+  const closeActionModal = () => {
+    setActionModal({ isOpen: false, type: null })
+    setReviewNotes('')
+  }
+
+  const handleConfirmAction = async () => {
+    if (!actionModal.type) return
+    
+    if (actionModal.type === 'reject' && !reviewNotes.trim()) {
+      alert('Please provide a reason for rejection.')
       return
     }
 
+    const newStatusName = actionModal.type === 'approve' ? 'approved' : 'cancelled'
+    await handleStatusChange(newStatusName, reviewNotes)
+    closeActionModal()
+  }
+
+  const handleStatusChange = async (newStatusName: string, notes?: string) => {
     setLoading(true)
     const supabase = createClient()
 
@@ -185,32 +214,33 @@ export default function ListingDetailClient({ listing, statuses, adminUserId }: 
             </h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {categories.map((cat) => (
-                <div key={cat.key} className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                    {cat.label}
-                  </h3>
-                  <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
-                    {photosByCategory[cat.key]?.[0] ? (
+              {photos.length > 0 ? (
+                categories.filter(cat => photosByCategory[cat.key]?.length > 0).map((cat) => (
+                  <div key={cat.key} className="space-y-3">
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                      {cat.label}
+                    </h3>
+                    <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
                       <img
                         src={photosByCategory[cat.key]![0].photo_url}
                         alt={`${cat.label} of ${getVehicleName()}`}
                         className="w-full h-full object-cover"
                       />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                        <Car className="w-8 h-8 mb-2 opacity-50" />
-                        <span className="text-xs">No image</span>
-                      </div>
-                    )}
-                    {photosByCategory[cat.key]?.length > 1 && (
-                       <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded-md">
-                         +{photosByCategory[cat.key]!.length - 1} more
-                       </div>
-                    )}
+                      {photosByCategory[cat.key]!.length > 1 && (
+                         <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded-md">
+                           +{photosByCategory[cat.key]!.length - 1} more
+                         </div>
+                      )}
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="col-span-full flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-gray-200 border-dashed">
+                  <Car className="w-16 h-16 text-gray-300 mb-4" />
+                  <p className="text-gray-500 font-medium">No photos available</p>
+                  <p className="text-sm text-gray-400 mt-1">This listing has no uploaded images.</p>
                 </div>
-              ))}
+              )}
             </div>
 
             {/* View All (Simple Carousel fallback for deep inspection if needed) */}
@@ -406,45 +436,94 @@ export default function ListingDetailClient({ listing, statuses, adminUserId }: 
           {status?.status_name === 'pending_approval' && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Actions</h2>
-              <div className="space-y-4">
-                <textarea
-                  placeholder="Review notes (required for rejection, optional for approval)"
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
-                  rows={3}
-                />
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleStatusChange('approved', reviewNotes)}
-                    disabled={loading}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="w-4 h-4" />
-                    )}
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange('cancelled', reviewNotes)}
-                    disabled={loading}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <XCircle className="w-4 h-4" />
-                    )}
-                    Reject
-                  </button>
-                </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => openActionModal('approve')}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm shadow-green-200"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Approve Listing
+                </button>
+                <button
+                  onClick={() => openActionModal('reject')}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Reject Listing
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={actionModal.isOpen}
+        onClose={closeActionModal}
+        title={actionModal.type === 'approve' ? 'Approve Listing' : 'Reject Listing'}
+      >
+        <div className="space-y-4">
+          <div className={`p-4 rounded-lg flex items-start gap-3 ${
+            actionModal.type === 'approve' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          }`}>
+            {actionModal.type === 'approve' ? (
+              <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p className="font-medium">
+                {actionModal.type === 'approve' 
+                  ? 'Are you sure you want to approve this listing?' 
+                  : 'Are you sure you want to reject this listing?'}
+              </p>
+              <p className="text-sm mt-1 opacity-90">
+                {actionModal.type === 'approve' 
+                  ? 'The listing will become scheduled or live immediately based on its start time.' 
+                  : 'The listing will be cancelled and the seller will be notified.'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review Notes {actionModal.type === 'reject' && <span className="text-red-500">*</span>}
+            </label>
+            <textarea
+              placeholder={actionModal.type === 'approve' ? "Optional notes for the seller..." : "Please provide a reason for rejection..."}
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
+              rows={4}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              onClick={closeActionModal}
+              disabled={loading}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmAction}
+              disabled={loading}
+              className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
+                actionModal.type === 'approve' 
+                  ? 'bg-green-600 hover:bg-green-700' 
+                  : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {actionModal.type === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

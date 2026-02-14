@@ -1875,79 +1875,343 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-      // Group photos by category
+            // Group photos by category
 
   
 
-      type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other'
+  
 
   
 
-      const photos = auction.auction_photos || []
+        
 
   
 
-      
+  
 
   
 
-      const photosByCategory = photos.reduce((acc, photo) => {
+            type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other' | 'exterior' | 'damage' | 'documents'
 
   
 
-          const cat = (photo.category || 'other').toLowerCase() as PhotoCategory
+  
 
   
 
-          if (!acc[cat]) acc[cat] = []
+        
 
   
 
-          acc[cat].push(photo)
+  
 
   
 
-          return acc
+            const photos = auction.auction_photos || []
 
   
 
-      }, {} as Record<PhotoCategory, typeof photos>)
+  
 
   
 
-      
+        
 
   
 
-      const categories: { key: PhotoCategory; label: string }[] = [
+  
 
   
 
-          { key: 'front', label: 'Front' },
+            
 
   
 
-          { key: 'rear', label: 'Rear' },
+  
 
   
 
-          { key: 'side', label: 'Side' },
+        
 
   
 
-          { key: 'interior', label: 'Interior' },
+  
 
   
 
-          { key: 'engine', label: 'Engine' },
+            const photosByCategory = photos.reduce((acc, photo) => {
 
   
 
-          { key: 'other', label: 'Other' },
+  
 
   
 
-      ]
+        
+
+  
+
+  
+
+  
+
+                const cat = (photo.category || 'other').toLowerCase() as PhotoCategory
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                if (!acc[cat]) acc[cat] = []
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                acc[cat].push(photo)
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                return acc
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+            }, {} as Record<PhotoCategory, typeof photos>)
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+            
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+            const categories: { key: PhotoCategory; label: string }[] = [
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'front', label: 'Front' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'rear', label: 'Rear' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'side', label: 'Side' },
+
+  
+
+  
+
+  
+
+                
+
+  
+
+  
+
+  
+
+                { key: 'exterior', label: 'Exterior' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'interior', label: 'Interior' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'engine', label: 'Engine' },
+
+  
+
+  
+
+  
+
+                
+
+  
+
+  
+
+  
+
+                { key: 'damage', label: 'Damage' },
+
+  
+
+  
+
+  
+
+                
+
+  
+
+  
+
+  
+
+                { key: 'documents', label: 'Documents' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+                { key: 'other', label: 'Other' },
+
+  
+
+  
+
+  
+
+        
+
+  
+
+  
+
+  
+
+            ]
 
   
 
@@ -2196,101 +2460,30 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   
 
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-
-  
-
-                         {categories.map((cat) => (
-
-  
-
+                         {photos.length > 0 ? (
+                           categories.filter(cat => photosByCategory[cat.key]?.length > 0).map((cat) => (
                             <div key={cat.key} className="space-y-2">
-
-  
-
                                <p className="text-xs font-medium text-gray-500 uppercase">{cat.label}</p>
-
-  
-
                                <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
-
-  
-
-                                  {photosByCategory[cat.key]?.[0] ? (
-
-  
-
-                                     <img 
-
-  
-
-                                        src={photosByCategory[cat.key]![0].photo_url} 
-
-  
-
-                                        alt={cat.label}
-
-  
-
-                                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-
-  
-
-                                     />
-
-  
-
-                                  ) : (
-
-  
-
-                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
-
-  
-
-                                        <Car className="w-8 h-8 opacity-50" />
-
-  
-
-                                     </div>
-
-  
-
-                                  )}
-
-  
-
-                                  {photosByCategory[cat.key]?.length > 1 && (
-
-  
-
+                                  <img 
+                                    src={photosByCategory[cat.key]![0].photo_url} 
+                                    alt={cat.label}
+                                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                  />
+                                  {photosByCategory[cat.key]!.length > 1 && (
                                      <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
-
-  
-
                                         +{photosByCategory[cat.key]!.length - 1}
-
-  
-
                                      </div>
-
-  
-
                                   )}
-
-  
-
                                </div>
-
-  
-
                             </div>
-
-  
-
-                         ))}
-
-  
-
+                         ))
+                         ) : (
+                            <div className="col-span-full flex flex-col items-center justify-center p-8 bg-gray-50 rounded-xl border border-gray-200 border-dashed">
+                               <Car className="w-12 h-12 text-gray-300 mb-2" />
+                               <p className="text-sm text-gray-500">No photos available</p>
+                            </div>
+                         )}
                       </div>
 
   

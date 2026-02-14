@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import Modal from '@/components/ui/Modal'
 
 interface TransactionForm {
   id: string
@@ -56,6 +57,12 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_transaction' | 'sold' | 'deal_failed'>('all')
   const [loading, setLoading] = useState<string | null>(null)
+  
+  // Modal State
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; txId: string | null }>({
+    isOpen: false,
+    txId: null
+  })
 
   const filteredTransactions = transactions.filter((tx) => {
     const vehicle = tx.auctions?.auction_vehicles
@@ -103,7 +110,18 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
     }
   }
 
-  const handleApprove = async (txId: string) => {
+  const openApproveModal = (txId: string) => {
+    setConfirmModal({ isOpen: true, txId })
+  }
+
+  const closeApproveModal = () => {
+    setConfirmModal({ isOpen: false, txId: null })
+  }
+
+  const handleConfirmApprove = async () => {
+    if (!confirmModal.txId) return
+    const txId = confirmModal.txId
+    
     setLoading(txId)
     const supabase = createClient()
 
@@ -122,6 +140,9 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
           tx.id === txId ? { ...tx, admin_approved: true, status: 'sold' as const } : tx
         )
       )
+      closeApproveModal()
+    } else {
+        alert('Failed to approve transaction')
     }
 
     setLoading(null)
@@ -307,7 +328,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleApprove(tx.id)
+                            openApproveModal(tx.id)
                           }}
                           disabled={loading === tx.id}
                           className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -453,6 +474,43 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
           })
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={closeApproveModal}
+        title="Approve Transaction"
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-green-50 text-green-800 rounded-lg flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Are you sure you want to approve this transaction?</p>
+              <p className="text-sm mt-1 opacity-90">
+                This will mark the transaction as "Sold" and notify both parties. This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              onClick={closeApproveModal}
+              disabled={loading !== null}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmApprove}
+              disabled={loading !== null}
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center gap-2"
+            >
+              {loading === confirmModal.txId && <Loader2 className="w-4 h-4 animate-spin" />}
+              Confirm Approval
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   )
 }
