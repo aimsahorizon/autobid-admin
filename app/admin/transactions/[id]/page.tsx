@@ -98,17 +98,30 @@ async function getTransactionChat(transactionId: string) {
   return data || []
 }
 
+async function getTransactionAgreementFields(transactionId: string) {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('transaction_agreement_fields')
+    .select('*')
+    .eq('transaction_id', transactionId)
+    .order('display_order', { ascending: true })
+
+  return data || []
+}
+
 export default async function TransactionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [transaction, forms, timeline, chat] = await Promise.all([
+  const [transaction, forms, timeline, chat, agreementFields] = await Promise.all([
     getTransaction(id),
     getTransactionForms(id),
     getTransactionTimeline(id),
     getTransactionChat(id),
+    getTransactionAgreementFields(id),
   ])
 
   if (!transaction) {
@@ -121,6 +134,7 @@ export default async function TransactionDetailPage({
       forms={forms}
       timeline={timeline}
       chat={chat}
+      agreementFields={agreementFields}
     />
   )
 }
