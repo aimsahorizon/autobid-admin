@@ -5,6 +5,8 @@ export interface User {
   email: string
   full_name: string | null
   profile_image_url: string | null
+  profile_photo_url: string | null
+  cover_photo_url: string | null
   role_id: string | null
   is_verified: boolean
   is_active: boolean
@@ -183,6 +185,22 @@ export interface AuctionTransaction {
   auctions?: Auction
   seller?: User
   buyer?: User
+}
+
+export interface TransactionReport {
+  id: string
+  transaction_id: string
+  reporter_id: string
+  reported_user_id: string
+  reason: 'Fraud' | 'Harassment' | 'Misrepresentation' | 'Non-payment' | 'Non-delivery' | 'Other'
+  description: string
+  status: 'pending' | 'reviewing' | 'resolved' | 'dismissed'
+  admin_notes: string | null
+  created_at: string
+  updated_at: string
+  reporter?: User
+  reported_user?: User
+  transaction?: AuctionTransaction
 }
 
 export interface AdminStats {
