@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   Menu,
   MapPin,
+  Flag,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'KYC Verification', href: '/admin/kyc', icon: FileCheck },
   { name: 'Auctions', href: '/admin/auctions', icon: Gavel },
   { name: 'Transactions', href: '/admin/transactions', icon: CreditCard },
+  { name: 'Reports', href: '/admin/reports', icon: Flag },
   { name: 'Locations', href: '/admin/locations', icon: MapPin },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ]
