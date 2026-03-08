@@ -1379,7 +1379,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <p className="text-2xl font-bold text-purple-600">
 
-                                â‚±{auction.current_price?.toLocaleString()}
+                                ₱{auction.current_price?.toLocaleString()}
 
                               </p>
 
@@ -1389,7 +1389,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <p className="text-xs text-gray-500 uppercase">Starting</p>
 
-                              <p className="text-sm text-gray-600">â‚±{auction.starting_price?.toLocaleString()}</p>
+                              <p className="text-sm text-gray-600">₱{auction.starting_price?.toLocaleString()}</p>
 
                             </div>
 
@@ -1453,7 +1453,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                               <div className="text-right">
 
-                                <p className="font-bold text-green-600">â‚±{highestBidder.bid_amount.toLocaleString()}</p>
+                                <p className="font-bold text-green-600">₱{highestBidder.bid_amount.toLocaleString()}</p>
 
                                 {highestBidder.is_auto_bid && (
 
@@ -2924,7 +2924,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                                      â‚±{bid.bid_amount.toLocaleString()}
+                                      ₱{bid.bid_amount.toLocaleString()}
 
   
 
@@ -3000,7 +3000,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                         <span className="font-medium text-gray-900">â‚±{auction.deposit_amount?.toLocaleString()}</span>
+                         <span className="font-medium text-gray-900">₱{auction.deposit_amount?.toLocaleString()}</span>
 
   
 
@@ -3016,7 +3016,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                         <span className="font-medium text-gray-900">â‚±{auction.bid_increment?.toLocaleString()}</span>
+                         <span className="font-medium text-gray-900">₱{auction.bid_increment?.toLocaleString()}</span>
 
   
 
@@ -3032,7 +3032,7 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
   
 
-                         <span className="font-medium text-gray-900">{auction.reserve_price ? `â‚±${auction.reserve_price.toLocaleString()}` : 'None'}</span>
+                         <span className="font-medium text-gray-900">{auction.reserve_price ? `₱${auction.reserve_price.toLocaleString()}` : 'None'}</span>
 
   
 
