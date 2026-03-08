@@ -27,13 +27,13 @@ const dotStyles: Record<StatusVariant, string> = {
 
 export function getStatusVariant(status: string): StatusVariant {
   const statusLower = status.toLowerCase()
-  if (['approved', 'completed', 'active', 'live', 'sold', 'won', 'verified'].includes(statusLower)) {
+  if (['approved', 'completed', 'active', 'live', 'sold', 'won', 'verified', 'finalized', 'resolved'].includes(statusLower)) {
     return 'success'
   }
-  if (['pending', 'pending_approval', 'under_review', 'scheduled', 'in_transaction'].includes(statusLower)) {
+  if (['pending', 'pending_approval', 'under_review', 'scheduled', 'in_transaction', 'pending_finalization', 'reviewing'].includes(statusLower)) {
     return 'warning'
   }
-  if (['rejected', 'cancelled', 'failed', 'expired', 'deal_failed', 'lost'].includes(statusLower)) {
+  if (['rejected', 'cancelled', 'failed', 'expired', 'deal_failed', 'lost', 'dismissed'].includes(statusLower)) {
     return 'error'
   }
   if (['draft', 'ended', 'unsold', 'outbid', 'refunded'].includes(statusLower)) {

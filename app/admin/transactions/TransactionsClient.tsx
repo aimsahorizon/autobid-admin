@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import {
   Search,
   CreditCard,
@@ -10,7 +9,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Loader2,
   FileText,
   User,
   Eye,
@@ -52,11 +50,10 @@ interface TransactionsClientProps {
 
 export default function TransactionsClient({ initialTransactions, stats }: TransactionsClientProps) {
   const router = useRouter()
-  const [transactions, setTransactions] = useState(initialTransactions)
+  const [transactions] = useState(initialTransactions)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_transaction' | 'sold' | 'deal_failed'>('all')
-  const [loading, setLoading] = useState<string | null>(null)
-
+  
   const filteredTransactions = transactions.filter((tx) => {
     const vehicle = tx.auctions?.auction_vehicles
     const searchLower = search.toLowerCase()
@@ -81,10 +78,6 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
     return tx.auctions?.title || 'Unknown Vehicle'
   }
 
-  const isReadyForApproval = (tx: Transaction) => {
-    return tx.seller_confirmed && tx.buyer_confirmed && !tx.admin_approved && tx.status === 'in_transaction'
-  }
-
   const getSellerForm = (tx: Transaction) => tx.forms.find((f) => f.role === 'seller')
   const getBuyerForm = (tx: Transaction) => tx.forms.find((f) => f.role === 'buyer')
 
@@ -101,30 +94,6 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
       default:
         return 'text-gray-600 bg-gray-100'
     }
-  }
-
-  const handleApprove = async (txId: string) => {
-    setLoading(txId)
-    const supabase = createClient()
-
-    const { error } = await supabase
-      .from('auction_transactions')
-      .update({
-        admin_approved: true,
-        status: 'sold',
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', txId)
-
-    if (!error) {
-      setTransactions((prev) =>
-        prev.map((tx) =>
-          tx.id === txId ? { ...tx, admin_approved: true, status: 'sold' as const } : tx
-        )
-      )
-    }
-
-    setLoading(null)
   }
 
   const getLegalChecklistCount = (form: TransactionForm | undefined) => {
@@ -154,7 +123,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
             </div>
             <div>
               <p className="text-2xl font-bold text-orange-700">{stats.pendingReview}</p>
-              <p className="text-sm text-orange-600">Pending Review</p>
+              <p className="text-sm text-orange-600">Pending Finalization</p>
             </div>
           </div>
         </div>
@@ -207,19 +176,26 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {(['all', 'pending', 'in_transaction', 'sold', 'deal_failed'] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  filter === status
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status === 'in_transaction' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
-              </button>
-            ))}
+            {(['all', 'pending', 'in_transaction', 'sold', 'deal_failed'] as const).map((status) => {
+              let label = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
+              if (status === 'in_transaction') label = 'In Progress'
+              if (status === 'pending') label = 'Pending Finalization'
+              if (status === 'sold') label = 'Finalized'
+              
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                    filter === status
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -302,24 +278,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
 
                     {/* Status & Actions */}
                     <div className="flex items-center gap-3">
-                      <StatusBadge status={tx.status} />
-                      {isReadyForApproval(tx) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleApprove(tx.id)
-                          }}
-                          disabled={loading === tx.id}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {loading === tx.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <CheckCircle className="w-4 h-4" />
-                          )}
-                          Approve
-                        </button>
-                      )}
+                      <StatusBadge status={tx.status === 'sold' ? 'Finalized' : tx.status} />
                       <button
                         onClick={() => router.push(`/admin/transactions/${tx.id}`)}
                         className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -342,7 +301,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
                       Both Confirmed {tx.seller_confirmed && tx.buyer_confirmed ? '✓' : '○'}
                     </span>
                     <span className={tx.admin_approved ? 'text-purple-600' : ''}>
-                      Admin Approved {tx.admin_approved ? '✓' : '○'}
+                      Finalized {tx.admin_approved ? '✓' : '○'}
                     </span>
                   </div>
                 </div>

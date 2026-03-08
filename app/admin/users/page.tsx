@@ -34,6 +34,8 @@ async function getUsers() {
       date_of_birth,
       sex,
       profile_image_url,
+      profile_photo_url,
+      cover_photo_url,
       is_verified,
       is_active,
       created_at,

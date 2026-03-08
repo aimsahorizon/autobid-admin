@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
+import { getPendingReportsCount } from '@/lib/supabase/reports'
 import StatsCard from '@/components/ui/StatsCard'
-import { Users, Car, FileCheck, Gavel, Clock, ArrowRight } from 'lucide-react'
+import { Users, Car, FileCheck, Gavel, Clock, ArrowRight, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -14,6 +15,7 @@ async function getStats() {
     { count: totalListings },
     { count: pendingKyc },
     { count: pendingTransactions },
+    pendingReports,
   ] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('auctions').select('*', { count: 'exact', head: true })
@@ -25,6 +27,7 @@ async function getStats() {
       .eq('status_id', (await supabase.from('kyc_statuses').select('id').eq('status_name', 'pending').single()).data?.id),
     supabase.from('auction_transactions').select('*', { count: 'exact', head: true })
       .eq('admin_approved', false),
+    getPendingReportsCount(),
   ])
 
   return {
@@ -34,6 +37,7 @@ async function getStats() {
     totalListings: totalListings || 0,
     pendingKyc: pendingKyc || 0,
     pendingTransactions: pendingTransactions || 0,
+    pendingReports: pendingReports || 0,
   }
 }
 
@@ -128,6 +132,31 @@ export default async function AdminDashboard() {
           trend={stats.pendingKyc > 0 ? { value: stats.pendingKyc, isPositive: false } : undefined}
         />
       </div>
+
+      {/* Action Items - Pending Reports */}
+      {stats.pendingReports > 0 && (
+        <Link
+          href="/admin/reports?filter=pending"
+          className="block bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-6 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                <AlertTriangle className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {stats.pendingReports} Pending Report{stats.pendingReports === 1 ? '' : 's'}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Transaction reports awaiting review
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="w-6 h-6 text-orange-600 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+      )}
 
       {/* Main Content Area */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

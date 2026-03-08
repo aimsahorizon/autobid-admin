@@ -2,14 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import {
   ArrowLeft,
   User,
   FileText,
   CheckCircle,
   XCircle,
-  Loader2,
   Clock,
   MapPin,
   CreditCard,
@@ -17,7 +15,6 @@ import {
   Mail,
   MessageSquare,
   Shield,
-  AlertTriangle,
   Car,
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
@@ -66,6 +63,19 @@ interface ChatMessage {
   created_at: string
 }
 
+interface AgreementField {
+  id: string
+  transaction_id: string
+  label: string
+  value: string
+  field_type: string
+  category: string
+  options: string | null
+  added_by: string | null
+  display_order: number
+  created_at: string
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Transaction = Record<string, any>
 
@@ -74,6 +84,7 @@ interface TransactionDetailClientProps {
   forms: TransactionForm[]
   timeline: TimelineEvent[]
   chat: ChatMessage[]
+  agreementFields: AgreementField[]
 }
 
 export default function TransactionDetailClient({
@@ -81,11 +92,17 @@ export default function TransactionDetailClient({
   forms,
   timeline,
   chat,
+  agreementFields,
 }: TransactionDetailClientProps) {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [adminNotes, setAdminNotes] = useState(String(transaction.admin_notes || ''))
-  const [activeTab, setActiveTab] = useState<'forms' | 'timeline' | 'chat'>('forms')
+  const [activeTab, setActiveTab] = useState<'agreement' | 'forms' | 'timeline' | 'chat'>('agreement')
+
+  const groupedFields = agreementFields.reduce((acc, field) => {
+    const category = field.category || 'General'
+    if (!acc[category]) acc[category] = []
+    acc[category].push(field)
+    return acc
+  }, {} as Record<string, AgreementField[]>)
 
   const sellerForm = forms.find((f) => f.role === 'seller')
   const buyerForm = forms.find((f) => f.role === 'buyer')
@@ -103,76 +120,6 @@ export default function TransactionDetailClient({
 
   const primaryPhoto = auctionPhotos?.find((p) => p.is_primary)?.photo_url
     || auctionPhotos?.[0]?.photo_url
-
-  const isReadyForApproval = Boolean(
-    transaction.seller_confirmed &&
-    transaction.buyer_confirmed &&
-    !transaction.admin_approved &&
-    transaction.status === 'in_transaction'
-  )
-
-  const handleApprove = async () => {
-    setLoading(true)
-    const supabase = createClient()
-
-    const { error } = await supabase
-      .from('auction_transactions')
-      .update({
-        admin_approved: true,
-        status: 'sold',
-        admin_notes: adminNotes || null,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', transaction.id)
-
-    if (!error) {
-      // Add timeline event
-      await supabase.from('transaction_timeline').insert({
-        transaction_id: transaction.id,
-        title: 'Transaction Approved',
-        description: adminNotes || 'Admin approved the transaction',
-        event_type: 'admin_approved',
-      })
-
-      router.refresh()
-      router.push('/admin/transactions')
-    }
-
-    setLoading(false)
-  }
-
-  const handleReject = async () => {
-    if (!adminNotes.trim()) {
-      alert('Please provide notes explaining the rejection reason')
-      return
-    }
-
-    setLoading(true)
-    const supabase = createClient()
-
-    const { error } = await supabase
-      .from('auction_transactions')
-      .update({
-        status: 'deal_failed',
-        admin_notes: adminNotes,
-      })
-      .eq('id', transaction.id)
-
-    if (!error) {
-      // Add timeline event
-      await supabase.from('transaction_timeline').insert({
-        transaction_id: transaction.id,
-        title: 'Transaction Rejected',
-        description: adminNotes,
-        event_type: 'cancelled',
-      })
-
-      router.refresh()
-      router.push('/admin/transactions')
-    }
-
-    setLoading(false)
-  }
 
   const legalChecklist = [
     { key: 'or_cr_verified', label: 'OR/CR Verified', icon: FileText },
@@ -233,7 +180,7 @@ export default function TransactionDetailClient({
             <p className="text-gray-500">ID: {String(transaction.id).slice(0, 8)}...</p>
           </div>
         </div>
-        <StatusBadge status={String(transaction.status || 'in_transaction')} />
+        <StatusBadge status={transaction.status === 'sold' ? 'Finalized' : String(transaction.status || 'in_transaction')} />
       </div>
 
       {/* Vehicle & Price Overview */}
@@ -383,6 +330,17 @@ export default function TransactionDetailClient({
         <div className="border-b border-gray-200">
           <div className="flex">
             <button
+              onClick={() => setActiveTab('agreement')}
+              className={`px-6 py-4 font-medium transition-colors ${
+                activeTab === 'agreement'
+                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <FileText className="w-4 h-4 inline mr-2" />
+              Agreement ({agreementFields.length})
+            </button>
+            <button
               onClick={() => setActiveTab('forms')}
               className={`px-6 py-4 font-medium transition-colors ${
                 activeTab === 'forms'
@@ -419,6 +377,43 @@ export default function TransactionDetailClient({
         </div>
 
         <div className="p-6">
+          {/* Agreement Tab */}
+          {activeTab === 'agreement' && (
+            <div className="space-y-6">
+              {agreementFields.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No agreement fields yet</p>
+                </div>
+              ) : (
+                Object.entries(groupedFields).map(([category, fields]) => (
+                  <div key={category} className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900 capitalize">
+                        {category.replace(/_/g, ' ')}
+                      </h3>
+                    </div>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {fields.map((field) => (
+                        <div key={field.id} className="space-y-1">
+                          <span className="text-sm font-medium text-gray-500 block">
+                            {field.label}
+                          </span>
+                          <p className="text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
+                            {field.value || <span className="text-gray-400 italic">Not set</span>}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Type: {field.field_type} • Added by: {field.added_by ? 'User' : 'System'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* Forms Tab */}
           {activeTab === 'forms' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -728,70 +723,6 @@ export default function TransactionDetailClient({
           )}
         </div>
       </div>
-
-      {/* Admin Actions */}
-      {!transaction.admin_approved && transaction.status === 'in_transaction' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Admin Actions
-          </h3>
-
-          {!isReadyForApproval && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-yellow-800">Waiting for confirmations</p>
-                <p className="text-sm text-yellow-700">
-                  Both seller and buyer must confirm before you can approve this transaction.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Admin Notes {!isReadyForApproval ? '(required for rejection)' : '(optional)'}
-              </label>
-              <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                placeholder="Add notes about this transaction..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleApprove}
-                disabled={loading || !isReadyForApproval}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <CheckCircle className="w-5 h-5" />
-                )}
-                Approve Transaction
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <XCircle className="w-5 h-5" />
-                )}
-                Reject Transaction
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Previous Admin Notes */}
       {typeof transaction.admin_notes === 'string' && transaction.admin_approved && (

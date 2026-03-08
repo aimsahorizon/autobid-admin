@@ -5,6 +5,7 @@ import ListingDetailClient from './ListingDetailClient'
 async function getListing(id: string) {
   const supabase = await createClient()
 
+  // Fetch the main auction data with all related information
   const { data, error } = await supabase
     .from('auctions')
     .select(`
@@ -19,7 +20,39 @@ async function getListing(id: string) {
     .single()
 
   if (error || !data) return null
-  return data
+
+  // Get watchers count
+  const { count: watchersCount } = await supabase
+    .from('auction_watchers')
+    .select('*', { count: 'exact', head: true })
+    .eq('auction_id', id)
+
+  // Get winner information if auction has ended
+  let winnerInfo = null
+  if (data.status_id && ['ended', 'sold', 'in_transaction'].includes(data.auction_statuses?.status_name || '')) {
+    const { data: winningBid } = await supabase
+      .from('bids')
+      .select('bidder_id, users (id, full_name, email)')
+      .eq('auction_id', id)
+      .order('bid_amount', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (winningBid) {
+      winnerInfo = {
+        winner_id: winningBid.bidder_id,
+        winner_name: (winningBid.users as any)?.full_name
+      }
+    }
+  }
+
+  // Merge watchers count and winner info
+  return {
+    ...data,
+    watchers_count: watchersCount || 0,
+    views_count: data.view_count || 0,
+    ...(winnerInfo || {})
+  }
 }
 
 async function getStatuses() {
@@ -38,7 +71,7 @@ export default async function ListingDetailPage({
   const { id } = await params
   const supabase = await createClient()
   
-  const [listing, statuses] = await Promise.all([getListing(id), getStatuses()])
+  const listing = await getListing(id)
 
   if (!listing) {
     notFound()
@@ -54,8 +87,7 @@ export default async function ListingDetailPage({
 
   return (
     <ListingDetailClient 
-      listing={listing} 
-      statuses={statuses} 
+      listing={listing}
       adminUserId={adminUser?.id || null} 
     />
   )

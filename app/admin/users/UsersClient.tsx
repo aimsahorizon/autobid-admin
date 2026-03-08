@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import {
   Search,
   CheckCircle,
@@ -514,12 +515,16 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
 
               <div className="flex items-start gap-4">
                 <div onClick={() => openViewModal(user)} className="cursor-pointer">
-                  {user.profile_image_url ? (
-                    <img
-                      src={user.profile_image_url}
-                      alt={user.full_name || 'User'}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
+                  {(user.profile_photo_url || user.profile_image_url) ? (
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                      <Image
+                        src={(user.profile_photo_url || user.profile_image_url)!}
+                        alt={user.full_name || 'User'}
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                      />
+                    </div>
                   ) : (
                     <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                       <span className="text-lg font-medium text-purple-700">
@@ -596,24 +601,54 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
       {/* View User Modal */}
       {modalMode === 'view' && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-4">
-                {selectedUser.profile_image_url ? (
-                  <img
-                    src={selectedUser.profile_image_url}
-                    alt={selectedUser.full_name || 'User'}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Cover Photo */}
+            {selectedUser.cover_photo_url ? (
+              <div className="relative h-48 rounded-t-2xl overflow-hidden bg-gradient-to-r from-purple-400 to-pink-400">
+                <Image
+                  src={selectedUser.cover_photo_url}
+                  alt="Cover Photo"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  priority
+                />
+              </div>
+            ) : (
+              <div className="relative h-48 rounded-t-2xl bg-gradient-to-r from-purple-400 to-pink-400" />
+            )}
+
+            <div className="p-6">
+              {/* Close Button */}
+              <button 
+                onClick={closeModal} 
+                className="absolute top-4 right-4 p-2 bg-white/90 hover:bg-white rounded-full text-gray-600 hover:text-gray-900 transition-colors shadow-lg z-10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Profile Photo & Info */}
+              <div className="flex items-start gap-4 -mt-16 mb-6">
+                {(selectedUser.profile_photo_url || selectedUser.profile_image_url) ? (
+                  <div className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-white shadow-lg">
+                    <Image
+                      src={(selectedUser.profile_photo_url || selectedUser.profile_image_url)!}
+                      alt={selectedUser.full_name || 'User'}
+                      fill
+                      className="object-cover"
+                      sizes="112px"
+                      priority
+                    />
+                  </div>
                 ) : (
-                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl font-medium text-purple-700">
+                  <div className="w-28 h-28 bg-purple-100 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                    <span className="text-3xl font-medium text-purple-700">
                       {getInitials(selectedUser.full_name, selectedUser.email)}
                     </span>
                   </div>
                 )}
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold text-gray-900">
                     {selectedUser.full_name || 'No Name'}
                   </h2>
                   <p className="text-gray-500">{selectedUser.email}</p>
@@ -622,12 +657,8 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                   )}
                 </div>
               </div>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
 
-             <div className="space-y-4">
+              {/* User Details */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Role</p>
@@ -709,7 +740,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
 
       {/* Create/Edit User Modal */}
       {(modalMode === 'create' || modalMode === 'edit') && (
-         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">
