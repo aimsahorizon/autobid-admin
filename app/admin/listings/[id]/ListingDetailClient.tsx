@@ -1,529 +1,224 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import {
-  ArrowLeft,
-  Car,
-  User,
-  Calendar,
-  Eye,
-  Gavel,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
-  Power,
-  Camera,
-  AlertTriangle
-} from 'lucide-react'
-import StatusBadge from '@/components/ui/StatusBadge'
-import Modal from '@/components/ui/Modal'
+import { ArrowLeft, FileDown } from 'lucide-react'
+import { ListingDetailModel } from '@/lib/types/listing-detail'
+import PhotoGallery from '@/components/admin/listings/PhotoGallery'
+import ListingMetadata from '@/components/admin/listings/ListingMetadata'
+import VehicleInfoSections from '@/components/admin/listings/VehicleInfoSections'
+import AuctionInfoSections from '@/components/admin/listings/AuctionInfoSections'
+import AdminActionPanel from '@/components/admin/listings/AdminActionPanel'
 
 interface ListingDetailClientProps {
   listing: Record<string, unknown>
-  statuses: Array<{ id: string; status_name: string; display_name: string }>
   adminUserId: string | null
 }
 
-type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other' | 'exterior' | 'damage' | 'documents'
-
-export default function ListingDetailClient({ listing, statuses, adminUserId }: ListingDetailClientProps) {
+export default function ListingDetailClient({ listing: rawListing, adminUserId }: ListingDetailClientProps) {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
-  const [reviewNotes, setReviewNotes] = useState('')
-  const [isActive, setIsActive] = useState(!!listing.is_active)
-  
-  // Modal State
-  const [actionModal, setActionModal] = useState<{ isOpen: boolean; type: 'approve' | 'reject' | null }>({
-    isOpen: false,
-    type: null
+
+  // Transform raw listing data to ListingDetailModel
+  // Map auction data + auction_vehicles data + computed fields
+  const vehicle = (rawListing.auction_vehicles as Record<string, unknown>) || {}
+  const seller = (rawListing.users as Record<string, unknown>) || {}
+  const status = rawListing.auction_statuses as { status_name: string; display_name: string }
+
+  const listing: ListingDetailModel = {
+    // Section 1: Listing Metadata
+    id: String(rawListing.id),
+    seller_id: String(rawListing.seller_id),
+    status: (status?.status_name || 'draft') as ListingDetailModel['status'],
+    admin_status: null, // Would need to be added to DB
+    rejection_reason: null, // Would need to be added to DB
+    reviewed_at: rawListing.reviewed_at as string | null,
+    reviewed_by: rawListing.reviewed_by as string | null,
+    made_live_at: null, // Would need to be added to DB
+    created_at: String(rawListing.created_at),
+    updated_at: String(rawListing.updated_at),
+
+    // Section 2: Photos & Media
+    cover_photo_url: null, // Would need to be added or use first photo
+    photo_urls: null, // JSONB structure - would need migration
+    deed_of_sale_url: (vehicle.deed_of_sale_url as string | null) || (rawListing.deed_of_sale_url as string | null),
+
+    // Section 3: Basic Vehicle Information (from auction_vehicles)
+    brand: vehicle.brand as string | null,
+    model: vehicle.model as string | null,
+    variant: vehicle.variant as string | null,
+    body_type: null, // Would need to be added to auction_vehicles
+    year: vehicle.year as number | null,
+
+    // Section 4: Mechanical Specification
+    engine_type: vehicle.engine_type as string | null,
+    engine_displacement: vehicle.engine_displacement as number | null,
+    cylinder_count: vehicle.cylinder_count as number | null,
+    horsepower: vehicle.horsepower as number | null,
+    torque: vehicle.torque as number | null,
+    transmission: vehicle.transmission as string | null,
+    fuel_type: vehicle.fuel_type as string | null,
+    drive_type: vehicle.drive_type as string | null,
+
+    // Section 5: Dimensions & Capacity
+    length: vehicle.length as number | null,
+    width: vehicle.width as number | null,
+    height: vehicle.height as number | null,
+    wheelbase: vehicle.wheelbase as number | null,
+    ground_clearance: vehicle.ground_clearance as number | null,
+    seating_capacity: vehicle.seating_capacity as number | null,
+    door_count: vehicle.door_count as number | null,
+    fuel_tank_capacity: vehicle.fuel_tank_capacity as number | null,
+    curb_weight: vehicle.curb_weight as number | null,
+    gross_weight: vehicle.gross_weight as number | null,
+
+    // Section 6: Exterior Details
+    exterior_color: vehicle.exterior_color as string | null,
+    paint_type: vehicle.paint_type as string | null,
+    rim_type: vehicle.rim_type as string | null,
+    rim_size: vehicle.rim_size as string | null,
+    tire_size: vehicle.tire_size as string | null,
+    tire_brand: vehicle.tire_brand as string | null,
+
+    // Section 7: Condition & History
+    condition: vehicle.condition as string | null,
+    mileage: vehicle.mileage as number | null,
+    previous_owners: vehicle.previous_owners as number | null,
+    usage_type: vehicle.usage_type as string | null,
+    has_modifications: vehicle.has_modifications as boolean | null,
+    modifications_details: vehicle.modifications_details as string | null,
+    has_warranty: vehicle.has_warranty as boolean | null,
+    warranty_details: vehicle.warranty_details as string | null,
+
+    // Section 8: Documentation & Location
+    plate_number: vehicle.plate_number as string | null,
+    orcr_status: vehicle.orcr_status as string | null,
+    registration_status: vehicle.registration_status as string | null,
+    registration_expiry: vehicle.registration_expiry as string | null,
+    province: vehicle.province as string | null,
+    city_municipality: vehicle.city_municipality as string | null,
+    barangay: null, // Would need to be added to auction_vehicles
+
+    // Section 9: Listing Description & Features
+    description: rawListing.description as string | null,
+    known_issues: vehicle.known_issues as string | null,
+    features: vehicle.features as string[] | null,
+
+    // Section 10: Auction & Pricing Configuration
+    starting_price: Number(rawListing.starting_price || 0),
+    reserve_price: rawListing.reserve_price as number | null,
+    current_bid: Number(rawListing.current_price || 0),
+    sold_price: null, // Would need to be added
+    bidding_type: (rawListing.bidding_type as 'public' | 'private') || 'public',
+    visibility: null,
+    bid_increment: Number(rawListing.bid_increment || 0),
+    min_bid_increment: rawListing.min_bid_increment as number | null,
+    deposit_amount: Number(rawListing.deposit_amount || 0),
+    enable_incremental_bidding: rawListing.enable_incremental_bidding as boolean | null,
+    auto_live_after_approval: null, // Would need to be added
+    allows_installment: null, // Would need to be added
+    snipe_guard_enabled: null, // Would need to be added
+    snipe_guard_threshold_seconds: null, // Would need to be added
+    snipe_guard_extend_seconds: null, // Would need to be added
+    auction_start_time: rawListing.start_time as string | null,
+    auction_end_time: rawListing.end_time as string | null,
+
+    // Section 11: Auction Activity
+    total_bids: Number(rawListing.total_bids || 0),
+    watchers_count: Number(rawListing.watchers_count || 0),
+    views_count: Number(rawListing.views_count || 0),
+    winner_id: rawListing.winner_id as string | null,
+    winner_name: rawListing.winner_name as string | null,
+
+    // Section 12: Transaction & Cancellation
+    transaction_id: null, // Would need to be added
+    cancellation_reason: null, // Would need to be added
+    sold_at: null, // Would need to be added
+
+    // Relations
+    seller: {
+      id: String(seller.id || rawListing.seller_id),
+      full_name: seller.full_name as string | null,
+      email: String(seller.email),
+      profile_image_url: seller.profile_image_url as string | null,
+    },
+    auction_statuses: status
+  }
+
+  // Get vehicle name for display
+  const getVehicleName = (): string => {
+    if (listing.year && listing.brand && listing.model) {
+      const variant = listing.variant ? ` ${listing.variant}` : ''
+      return `${listing.year} ${listing.brand} ${listing.model}${variant}`
+    }
+    return (rawListing.title as string) || 'Untitled Listing'
+  }
+
+  // Convert auction_photos to photo_urls structure for PhotoGallery
+  const photos = (rawListing.auction_photos as Array<{ photo_url: string; category: string }>) || []
+  const photoUrls: Record<string, string[]> = {}
+  photos.forEach(photo => {
+    const category = photo.category || 'other'
+    if (!photoUrls[category]) photoUrls[category] = []
+    photoUrls[category].push(photo.photo_url)
   })
 
-  const photos = (listing.auction_photos as Array<{ id: string; photo_url: string; is_primary: boolean; category: string }>) || []
-  const vehicle = listing.auction_vehicles as Record<string, unknown>
-  const seller = listing.users as Record<string, unknown>
-  const status = listing.auction_statuses as { status_name: string; display_name: string }
-
-  // Group photos by category
-  const photosByCategory = photos.reduce((acc, photo) => {
-    const cat = (photo.category || 'other').toLowerCase() as PhotoCategory
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(photo)
-    return acc
-  }, {} as Record<PhotoCategory, typeof photos>)
-
-  const categories: { key: PhotoCategory; label: string }[] = [
-    { key: 'front', label: 'Front View' },
-    { key: 'rear', label: 'Rear View' },
-    { key: 'side', label: 'Side View' },
-    { key: 'exterior', label: 'Exterior (General)' },
-    { key: 'interior', label: 'Interior' },
-    { key: 'engine', label: 'Engine Bay' },
-    { key: 'damage', label: 'Damage / Defects' },
-    { key: 'documents', label: 'Documents' },
-    { key: 'other', label: 'Other Photos' },
-  ]
-
-  const openActionModal = (type: 'approve' | 'reject') => {
-    setActionModal({ isOpen: true, type })
-    setReviewNotes('')
-  }
-
-  const closeActionModal = () => {
-    setActionModal({ isOpen: false, type: null })
-    setReviewNotes('')
-  }
-
-  const handleConfirmAction = async () => {
-    if (!actionModal.type) return
-    
-    if (actionModal.type === 'reject' && !reviewNotes.trim()) {
-      alert('Please provide a reason for rejection.')
-      return
-    }
-
-    const newStatusName = actionModal.type === 'approve' ? 'approved' : 'cancelled'
-    await handleStatusChange(newStatusName, reviewNotes)
-    closeActionModal()
-  }
-
-  const handleStatusChange = async (newStatusName: string, notes?: string) => {
-    setLoading(true)
-    const supabase = createClient()
-
-    const newStatus = statuses.find((s) => s.status_name === newStatusName)
-    if (!newStatus) {
-      setLoading(false)
-      return
-    }
-
-    // Update auction with status and review info
-    const { error } = await supabase
-      .from('auctions')
-      .update({ 
-        status_id: newStatus.id,
-        review_notes: notes || null,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: adminUserId
-      })
-      .eq('id', listing.id)
-
-    if (!error) {
-      // Log to audit (auction_moderation)
-      if (adminUserId) {
-        await supabase.from('auction_moderation').insert({
-          auction_id: listing.id,
-          moderator_id: adminUserId,
-          action: newStatusName === 'approved' ? 'approve' : 'reject',
-          reason: notes || null,
-          notes: notes || null,
-        })
-      }
-
-      router.refresh()
-    } else {
-      console.error('Error updating auction status:', error)
-      alert('Failed to update status. Please try again.')
-    }
-
-    setLoading(false)
-  }
-
-  const toggleActive = async () => {
-    setLoading(true)
-    const supabase = createClient()
-    
-    const { error } = await supabase
-      .from('auctions')
-      .update({ is_active: !isActive })
-      .eq('id', listing.id)
-
-    if (!error) {
-      setIsActive(!isActive)
-      router.refresh()
-    }
-    setLoading(false)
-  }
-
-  const getVehicleName = (): string => {
-    if (vehicle?.year && vehicle?.brand && vehicle?.model) {
-      const year = String(vehicle.year)
-      const brand = String(vehicle.brand)
-      const model = String(vehicle.model)
-      const variant = vehicle.variant ? ` ${String(vehicle.variant)}` : ''
-      return `${year} ${brand} ${model}${variant}`
-    }
-    return (listing.title as string) || 'Untitled Listing'
-  }
-
-  const nextPhoto = () => setCurrentPhotoIndex((i) => (i + 1) % photos.length)
-  const prevPhoto = () => setCurrentPhotoIndex((i) => (i - 1 + photos.length) % photos.length)
+  const vehicleName = getVehicleName()
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{getVehicleName()}</h1>
-              {!isActive && (
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold uppercase rounded">
-                  Inactive
-                </span>
-              )}
-            </div>
-            <p className="text-gray-500">Listing ID: {listing.id as string}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleActive}
-            disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              isActive
-                ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                : 'bg-green-50 text-green-600 hover:bg-green-100'
-            }`}
-          >
-            <Power className="w-4 h-4" />
-            {isActive ? 'Deactivate' : 'Activate'}
-          </button>
-          <StatusBadge status={status?.status_name || 'draft'} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Photos & Vehicle Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Photo Gallery (Categorized) */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Camera className="w-5 h-5 text-gray-400" />
-              Vehicle Photos
-            </h2>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {photos.length > 0 ? (
-                categories.filter(cat => photosByCategory[cat.key]?.length > 0).map((cat) => (
-                  <div key={cat.key} className="space-y-3">
-                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                      {cat.label}
-                    </h3>
-                    <div className="aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group">
-                      <img
-                        src={photosByCategory[cat.key]![0].photo_url}
-                        alt={`${cat.label} of ${getVehicleName()}`}
-                        className="w-full h-full object-cover"
-                      />
-                      {photosByCategory[cat.key]!.length > 1 && (
-                         <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded-md">
-                           +{photosByCategory[cat.key]!.length - 1} more
-                         </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-full flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-gray-200 border-dashed">
-                  <Car className="w-16 h-16 text-gray-300 mb-4" />
-                  <p className="text-gray-500 font-medium">No photos available</p>
-                  <p className="text-sm text-gray-400 mt-1">This listing has no uploaded images.</p>
-                </div>
-              )}
-            </div>
-
-            {/* View All (Simple Carousel fallback for deep inspection if needed) */}
-             {photos.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-100">
-                  <p className="text-sm text-gray-500 mb-2">All Photos ({photos.length})</p>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {photos.map((photo, i) => (
-                       <div key={photo.id || i} className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200">
-                          <img src={photo.photo_url} className="w-full h-full object-cover" />
-                       </div>
-                    ))}
-                  </div>
-                </div>
-             )}
-          </div>
-
-          {/* Vehicle Details */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Vehicle Details</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {[
-                { label: 'Brand', value: vehicle?.brand as string | null },
-                { label: 'Model', value: vehicle?.model as string | null },
-                { label: 'Variant', value: vehicle?.variant as string | null },
-                { label: 'Year', value: vehicle?.year as string | number | null },
-                { label: 'Mileage', value: vehicle?.mileage ? `${(vehicle.mileage as number).toLocaleString()} km` : null },
-                { label: 'Condition', value: vehicle?.condition as string | null },
-                { label: 'Exterior Color', value: vehicle?.exterior_color as string | null },
-                { label: 'Transmission', value: vehicle?.transmission as string | null },
-                { label: 'Fuel Type', value: vehicle?.fuel_type as string | null },
-              ].filter((item): item is { label: string; value: string | number } => item.value != null)
-              .map((item) => (
-                <div key={item.label} className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{item.label}</p>
-                  <p className="font-medium text-gray-900 mt-1">{String(item.value)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Description */}
-          {typeof listing.description === 'string' && listing.description && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Description</h2>
-              <p className="text-gray-600 whitespace-pre-wrap">{listing.description}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column - Actions & Info */}
-        <div className="space-y-6">
-          {/* Pricing */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Pricing</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Starting Price</span>
-                <span className="font-semibold text-gray-900">
-                  ₱{(listing.starting_price as number)?.toLocaleString()}
-                </span>
-              </div>
-              {typeof listing.reserve_price === 'number' && listing.reserve_price > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Reserve Price</span>
-                  <span className="font-semibold text-gray-900">
-                    ₱{listing.reserve_price.toLocaleString()}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-gray-500">Current Price</span>
-                <span className="font-semibold text-purple-600">
-                  ₱{(listing.current_price as number)?.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Bid Increment</span>
-                <span className="font-semibold text-gray-900">
-                  ₱{(listing.bid_increment as number)?.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Deposit Required</span>
-                <span className="font-semibold text-gray-900">
-                  ₱{(listing.deposit_amount as number)?.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Statistics</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <Gavel className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-gray-900">{listing.total_bids as number}</p>
-                <p className="text-xs text-gray-500">Total Bids</p>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <Eye className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-gray-900">{listing.view_count as number}</p>
-                <p className="text-xs text-gray-500">Views</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Seller Info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Seller Information</h2>
-            <div className="flex items-center gap-3">
-              {(seller?.profile_image_url as string) ? (
-                <img
-                  src={seller.profile_image_url as string}
-                  alt="Seller"
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-purple-600" />
-                </div>
-              )}
-              <div>
-                <p className="font-medium text-gray-900">
-                  {(seller?.full_name as string) || 'Unknown Seller'}
-                </p>
-                <p className="text-sm text-gray-500">{seller?.email as string}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Schedule</h2>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-xs text-gray-500">Created</p>
-                  <p className="font-medium text-gray-900">
-                    {new Date(listing.created_at as string).toLocaleString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric', 
-                      hour: '2-digit', 
-                      minute: '2-digit',
-                      timeZone: 'Asia/Manila'
-                    })}
-                  </p>
-                </div>
-              </div>
-              {typeof listing.start_time === 'string' && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-green-500" />
-                  <div>
-                    <p className="text-xs text-gray-500">Start Time</p>
-                    <p className="font-medium text-gray-900">
-                      {new Date(listing.start_time).toLocaleString('en-US', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric', 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        timeZone: 'Asia/Manila'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {typeof listing.end_time === 'string' && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-red-500" />
-                  <div>
-                    <p className="text-xs text-gray-500">End Time</p>
-                    <p className="font-medium text-gray-900">
-                      {new Date(listing.end_time).toLocaleString('en-US', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric', 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        timeZone: 'Asia/Manila'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Admin Actions */}
-          {status?.status_name === 'pending_approval' && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Actions</h2>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => openActionModal('approve')}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium shadow-sm shadow-green-200"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Approve Listing
-                </button>
-                <button
-                  onClick={() => openActionModal('reject')}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                >
-                  <XCircle className="w-5 h-5" />
-                  Reject Listing
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Confirmation Modal */}
-      <Modal
-        isOpen={actionModal.isOpen}
-        onClose={closeActionModal}
-        title={actionModal.type === 'approve' ? 'Approve Listing' : 'Reject Listing'}
-      >
-        <div className="space-y-4">
-          <div className={`p-4 rounded-lg flex items-start gap-3 ${
-            actionModal.type === 'approve' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-          }`}>
-            {actionModal.type === 'approve' ? (
-              <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Page Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-[1600px] mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="font-medium">Back to Listings</span>
+            </button>
+            {listing.deed_of_sale_url && (
+              <a
+                href={listing.deed_of_sale_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium transition-colors"
+              >
+                <FileDown className="w-4 h-4" />
+                Download Deed of Sale
+              </a>
             )}
-            <div>
-              <p className="font-medium">
-                {actionModal.type === 'approve' 
-                  ? 'Are you sure you want to approve this listing?' 
-                  : 'Are you sure you want to reject this listing?'}
-              </p>
-              <p className="text-sm mt-1 opacity-90">
-                {actionModal.type === 'approve' 
-                  ? 'The listing will become scheduled or live immediately based on its start time.' 
-                  : 'The listing will be cancelled and the seller will be notified.'}
-              </p>
-            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">{vehicleName}</h1>
+        </div>
+      </div>
+
+      <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
+        {/* Section 1: Listing Metadata */}
+        <ListingMetadata listing={listing} />
+
+        {/* Section 2: Photos & Media */}
+        <PhotoGallery 
+          photoUrls={photoUrls} 
+          coverPhotoUrl={listing.cover_photo_url}
+          vehicleName={vehicleName}
+        />
+
+        {/* Two-Column Layout for Vehicle Info and Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left: Vehicle Information (Sections 3-9) */}
+          <div className="lg:col-span-2">
+            <VehicleInfoSections listing={listing} />
           </div>
 
+          {/* Right: Admin Actions */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Review Notes {actionModal.type === 'reject' && <span className="text-red-500">*</span>}
-            </label>
-            <textarea
-              placeholder={actionModal.type === 'approve' ? "Optional notes for the seller..." : "Please provide a reason for rejection..."}
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
-              rows={4}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button
-              onClick={closeActionModal}
-              disabled={loading}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmAction}
-              disabled={loading}
-              className={`px-6 py-2 rounded-lg text-white font-medium flex items-center gap-2 ${
-                actionModal.type === 'approve' 
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {actionModal.type === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
-            </button>
+            <AdminActionPanel listing={listing} adminUserId={adminUserId} />
           </div>
         </div>
-      </Modal>
+
+        {/* Full-Width: Auction Configuration & Activity (Sections 10-12) */}
+        <AuctionInfoSections listing={listing} />
+      </div>
     </div>
   )
 }
