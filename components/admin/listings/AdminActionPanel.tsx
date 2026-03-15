@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, MessageSquare, Power, AlertTriangle, FileText, History } from 'lucide-react'
+import { CheckCircle, XCircle, MessageSquare, Power, FileText, History } from 'lucide-react'
 import { ListingDetailModel } from '@/lib/types/listing-detail'
 import Modal from '@/components/ui/Modal'
 
@@ -16,10 +16,10 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<'approve' | 'reject' | 'cancel' | 'end' | null>(null)
+  const [modalType, setModalType] = useState<'approve' | 'reject' | null>(null)
   const [reason, setReason] = useState('')
 
-  const openModal = (type: 'approve' | 'reject' | 'cancel' | 'end') => {
+  const openModal = (type: 'approve' | 'reject') => {
     setModalType(type)
     setModalOpen(true)
     setReason('')
@@ -34,9 +34,9 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
   const handleAction = async () => {
     if (!modalType) return
 
-    // Validate rejection/cancellation reason
-    if ((modalType === 'reject' || modalType === 'cancel') && !reason.trim()) {
-      alert(`Please provide a reason for ${modalType === 'reject' ? 'rejection' : 'cancellation'}.`)
+    // Validate rejection reason
+    if (modalType === 'reject' && !reason.trim()) {
+      alert('Please provide a reason for rejection.')
       return
     }
 
@@ -90,45 +90,6 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
             notes: reason
           })
         }
-      } else if (modalType === 'cancel') {
-        const cancelledStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'cancelled').single()).data?.id
-
-        await supabase
-          .from('auctions')
-          .update({
-            status_id: cancelledStatusId,
-            review_notes: reason
-          })
-          .eq('id', listing.id)
-
-        if (adminUserId) {
-          await supabase.from('auction_moderation').insert({
-            auction_id: listing.id,
-            moderator_id: adminUserId,
-            action: 'cancel',
-            reason: reason,
-            notes: reason
-          })
-        }
-      } else if (modalType === 'end') {
-        const endedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'ended').single()).data?.id
-
-        await supabase
-          .from('auctions')
-          .update({
-            status_id: endedStatusId,
-            end_time: new Date().toISOString()
-          })
-          .eq('id', listing.id)
-
-        if (adminUserId) {
-          await supabase.from('auction_moderation').insert({
-            auction_id: listing.id,
-            moderator_id: adminUserId,
-            action: 'end_early',
-            notes: 'Admin ended auction early'
-          })
-        }
       }
 
       router.refresh()
@@ -143,7 +104,6 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
 
   const isPending = listing.status === 'pending_approval'
   const isApproved = listing.status === 'scheduled' || listing.status === 'live'
-  const isLive = listing.status === 'live'
   const canMakeLive = listing.status === 'scheduled'
 
   return (
@@ -185,52 +145,18 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
           )}
 
           {/* Approved/Scheduled Listing Actions */}
-          {isApproved && (
-            <>
-              {canMakeLive && (
-                <button
-                  onClick={() => {/* Implement make live */}}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Power className="w-5 h-5" />
-                  Make Live Now
-                </button>
-              )}
-
-              <button
-                onClick={() => {/* Implement revoke */}}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <XCircle className="w-5 h-5" />
-                Revoke Approval
-              </button>
-            </>
+          {isApproved && canMakeLive && (
+            <button
+              onClick={() => {/* Implement make live */}}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Power className="w-5 h-5" />
+              Make Live Now
+            </button>
           )}
 
-          {/* Active Listing Actions */}
-          {isLive && (
-            <>
-              <button
-                onClick={() => openModal('end')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <AlertTriangle className="w-5 h-5" />
-                End Auction
-              </button>
 
-              <button
-                onClick={() => openModal('cancel')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <XCircle className="w-5 h-5" />
-                Cancel Listing
-              </button>
-            </>
-          )}
 
           {/* Common Actions */}
           <div className="pt-4 border-t border-gray-200 space-y-3">
@@ -266,18 +192,14 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
           <h3 className="text-xl font-semibold text-gray-900 mb-4">
             {modalType === 'approve' && 'Approve Listing'}
             {modalType === 'reject' && 'Reject Listing'}
-            {modalType === 'cancel' && 'Cancel Listing'}
-            {modalType === 'end' && 'End Auction'}
           </h3>
 
           <p className="text-gray-600 mb-4">
             {modalType === 'approve' && 'This will approve the listing for display. The listing will go live based on its configuration.'}
             {modalType === 'reject' && 'This will reject the listing and notify the seller. Please provide a reason.'}
-            {modalType === 'cancel' && 'This will cancel the active listing. Please provide a reason.'}
-            {modalType === 'end' && 'This will immediately end the auction and process the winner (if applicable).'}
           </p>
 
-          {(modalType === 'reject' || modalType === 'cancel' || modalType === 'approve') && (
+          {(modalType === 'reject' || modalType === 'approve') && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {modalType === 'approve' ? 'Notes (Optional)' : 'Reason *'}
@@ -288,7 +210,7 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
                 placeholder={
                   modalType === 'approve' 
                     ? 'Optional approval notes...' 
-                    : `Enter ${modalType === 'reject' ? 'rejection' : 'cancellation'} reason...`
+                    : 'Enter rejection reason...'
                 }
                 rows={4}
                 required={modalType !== 'approve'}
