@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Car, Eye, Gavel, Star, Trash2, CheckSquare, Square, AlertTriangle, Loader2, Archive, Shield } from 'lucide-react'
+import { Search, Car, Eye, Gavel, Star, Trash2, CheckSquare, Square, AlertTriangle, Loader2, Shield } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { bulkDeleteListings, deleteAllListings } from './actions'
 import { createClient } from '@/lib/supabase/client'
@@ -65,7 +65,6 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
   }
   const [modalMode, setModalMode] = useState<'delete' | null>(null)
   const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
-  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [targetListingForDelete, setTargetListingForDelete] = useState<Listing | null>(null)
@@ -131,7 +130,6 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
   const openDeleteModal = (listing: Listing | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
     if (listing) setTargetListingForDelete(listing)
     setActionScope(scope)
-    setDeleteType('soft')
     setModalMode('delete')
     setError(null)
   }
@@ -150,28 +148,18 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
 
     try {
       if (actionScope === 'single' && targetListingForDelete) {
-        result = await bulkDeleteListings([targetListingForDelete.id], deleteType)
+        result = await bulkDeleteListings([targetListingForDelete.id])
       } else if (actionScope === 'selected') {
-        result = await bulkDeleteListings(Array.from(selectedIds), deleteType)
+        result = await bulkDeleteListings(Array.from(selectedIds))
       } else if (actionScope === 'all') {
-        result = await deleteAllListings(deleteType)
+        result = await deleteAllListings()
       }
 
       if (result?.success) {
         // Optimistic update
         if (actionScope === 'single' && targetListingForDelete) {
-          if (deleteType === 'hard') {
-            setListings(prev => prev.filter(l => l.id !== targetListingForDelete.id))
-          } else {
-            // Refresh logic usually better for soft deletes to get updated status
-            // But we can optimistically update status to 'cancelled' if we knew the ID
-            // Here just removing from view if status filter is active might be confusing
-            // Simplest is to let router.refresh() handle it or filter out locally
-             setListings(prev => prev.filter(l => l.id !== targetListingForDelete.id)) // temporary removal from view
-          }
+          setListings(prev => prev.filter(l => l.id !== targetListingForDelete.id))
         } else {
-           // For bulk/all, best to refresh or clear
-           // We can filter out selected
            setListings(prev => prev.filter(l => !selectedIds.has(l.id)))
         }
         
@@ -503,52 +491,18 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
             )}
 
             <div className="mb-6 space-y-4">
-              {/* Deletion Type Selection */}
-              <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-                <button
-                  onClick={() => setDeleteType('soft')}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                    deleteType === 'soft' 
-                      ? 'bg-white text-purple-700 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Cancel (Soft)
-                </button>
-                <button
-                  onClick={() => setDeleteType('hard')}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                    deleteType === 'hard' 
-                      ? 'bg-white text-red-700 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Delete (Hard)
-                </button>
-              </div>
-
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-600 mb-2">
-                  {deleteType === 'soft' ? (
-                    <>
-                      <strong>Soft Delete</strong> will mark listings as <strong>Cancelled</strong>. They will still exist in the database.
-                    </>
-                  ) : (
-                    <>
-                      <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the listing data.
-                    </>
-                  )}
+                  <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the listing data.
                 </p>
 
-                {deleteType === 'hard' && (
-                  <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
-                    <li>Removes listing</li>
-                    <li>Deletes all associated bids and photos</li>
-                    <li>This action cannot be undone</li>
-                  </ul>
-                )}
+                <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
+                  <li>Removes listing</li>
+                  <li>Deletes all associated bids and photos</li>
+                  <li>This action cannot be undone</li>
+                </ul>
                 
-                {actionScope === 'all' && deleteType === 'hard' && (
+                {actionScope === 'all' && (
                    <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
                      WARNING: You are about to wipe the entire listings database!
                    </p>
@@ -567,16 +521,14 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
               <button
                 onClick={handleExecuteDelete}
                 disabled={loading}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 ${
-                  deleteType === 'hard' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 bg-red-600 hover:bg-red-700`}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    {deleteType === 'hard' ? <Trash2 className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                    Confirm {deleteType === 'soft' ? 'Cancel' : 'Delete'}
+                    <Trash2 className="w-4 h-4" />
+                    Confirm Delete
                   </>
                 )}
               </button>
