@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, FileDown } from 'lucide-react'
-import { ListingDetailModel } from '@/lib/types/listing-detail'
+import { ListingDetailModel, AdminStatus } from '@/lib/types/listing-detail'
 import PhotoGallery from '@/components/admin/listings/PhotoGallery'
 import ListingMetadata from '@/components/admin/listings/ListingMetadata'
 import VehicleInfoSections from '@/components/admin/listings/VehicleInfoSections'
@@ -28,8 +28,8 @@ export default function ListingDetailClient({ listing: rawListing, adminUserId }
     id: String(rawListing.id),
     seller_id: String(rawListing.seller_id),
     status: (status?.status_name || 'draft') as ListingDetailModel['status'],
-    admin_status: null, // Would need to be added to DB
-    rejection_reason: null, // Would need to be added to DB
+    admin_status: status?.status_name === 'rejected' ? 'rejected' : (status?.status_name === 'scheduled' || status?.status_name === 'live' || status?.status_name === 'approved') ? 'approved' : 'pending' as AdminStatus,
+    rejection_reason: (rawListing.rejection_reason as string | null) || (rawListing.review_notes as string | null),
     reviewed_at: rawListing.reviewed_at as string | null,
     reviewed_by: rawListing.reviewed_by as string | null,
     made_live_at: null, // Would need to be added to DB

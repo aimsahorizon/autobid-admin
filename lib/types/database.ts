@@ -87,7 +87,7 @@ export interface Auction {
 
 export interface AuctionStatus {
   id: string
-  status_name: 'draft' | 'pending_approval' | 'scheduled' | 'live' | 'ended' | 'cancelled' | 'sold' | 'unsold'
+  status_name: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'scheduled' | 'live' | 'ended' | 'cancelled' | 'in_transaction' | 'sold' | 'deal_failed'
   display_name: string
 }
 

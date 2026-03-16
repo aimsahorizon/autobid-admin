@@ -45,18 +45,61 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
 
     try {
       if (modalType === 'approve') {
-        // Set admin_status to approved (would need this column added to auctions table)
-        // Also check auto_live_after_approval flag
-        const newStatus = listing.auto_live_after_approval ? 'live' : 'scheduled'
-        
+        // Determine correct status based on seller's configuration:
+        // 1. auto_live_after_approval = true → go live immediately
+        // 2. future start_time is set → scheduled (will go live at that time)
+        // 3. otherwise → approved (seller decides when to go live)
+        let newStatus: string
+        const updateFields: Record<string, unknown> = {
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: adminUserId,
+          review_notes: reason || 'Approved by admin',
+        }
+
+        if (listing.auto_live_after_approval) {
+          newStatus = 'live'
+          const now = new Date()
+          // Use seller's configured duration (end - start), or fall back to their end_time if still valid
+          if (listing.auction_start_time && listing.auction_end_time) {
+            const sellerStart = new Date(listing.auction_start_time)
+            const sellerEnd = new Date(listing.auction_end_time)
+            const durationMs = sellerEnd.getTime() - sellerStart.getTime()
+            if (durationMs > 0) {
+              // Preserve the seller's intended duration, starting from now
+              updateFields.start_time = now.toISOString()
+              updateFields.end_time = new Date(now.getTime() + durationMs).toISOString()
+            } else {
+              // Invalid duration, just use the seller's end_time if it's in the future
+              updateFields.start_time = now.toISOString()
+              updateFields.end_time = sellerEnd > now ? sellerEnd.toISOString() : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          } else if (listing.auction_end_time && new Date(listing.auction_end_time) > now) {
+            // No start time but valid end time
+            updateFields.start_time = now.toISOString()
+          } else {
+            // No valid times at all, fallback to 7 days
+            updateFields.start_time = now.toISOString()
+            updateFields.end_time = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          }
+        } else if (listing.auction_start_time && new Date(listing.auction_start_time) > new Date()) {
+          // Seller set a future start time → schedule it
+          newStatus = 'scheduled'
+        } else {
+          // No auto-live, no future schedule → approved, seller decides
+          newStatus = 'approved'
+        }
+
+        const { data: statusData } = await supabase
+          .from('auction_statuses')
+          .select('id')
+          .eq('status_name', newStatus)
+          .single()
+
+        updateFields.status_id = statusData?.id
+
         await supabase
           .from('auctions')
-          .update({
-            status_id: (await supabase.from('auction_statuses').select('id').eq('status_name', newStatus).single()).data?.id,
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: adminUserId,
-            review_notes: reason || 'Approved by admin'
-          })
+          .update(updateFields)
           .eq('id', listing.id)
 
         // Log moderation action
@@ -65,16 +108,17 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
             auction_id: listing.id,
             moderator_id: adminUserId,
             action: 'approve',
-            notes: reason || 'Approved'
+            notes: reason || `Approved → ${newStatus}`
           })
         }
       } else if (modalType === 'reject') {
-        const rejectedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'cancelled').single()).data?.id
+        const rejectedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'rejected').single()).data?.id
 
         await supabase
           .from('auctions')
           .update({
             status_id: rejectedStatusId,
+            rejection_reason: reason,
             reviewed_at: new Date().toISOString(),
             reviewed_by: adminUserId,
             review_notes: reason

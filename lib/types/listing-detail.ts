@@ -120,7 +120,9 @@ export type AdminStatus = 'pending' | 'approved' | 'rejected'
 
 export type AuctionStatusName = 
   | 'draft'
-  | 'pending_approval' 
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
   | 'scheduled'
   | 'live'
   | 'ended'
