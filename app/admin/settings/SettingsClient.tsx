@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User, Shield, Key, Loader2, CheckCircle, Mail, Calendar } from 'lucide-react'
+import { User, Shield, Key, Loader2, CheckCircle, Mail, Calendar, Trash2, Database, AlertTriangle, Sprout } from 'lucide-react'
 
 interface SettingsClientProps {
   adminUser: {
@@ -18,6 +18,49 @@ export default function SettingsClient({ adminUser }: SettingsClientProps) {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [nukeLoading, setNukeLoading] = useState(false)
+  const [seedLoading, setSeedLoading] = useState(false)
+  const [nukeResult, setNukeResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [seedResult, setSeedResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [showNukeConfirm, setShowNukeConfirm] = useState(false)
+  const [nukeConfirmText, setNukeConfirmText] = useState('')
+
+  const handleNukeDatabase = async () => {
+    if (nukeConfirmText !== 'NUKE') return
+    setNukeLoading(true)
+    setNukeResult(null)
+    try {
+      const res = await fetch('/api/admin/nuke', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setNukeResult({ success: true, message: data.message || 'Database nuked successfully' })
+      } else {
+        setNukeResult({ success: false, message: data.error || 'Nuke failed' })
+      }
+    } catch {
+      setNukeResult({ success: false, message: 'Network error' })
+    }
+    setNukeLoading(false)
+    setShowNukeConfirm(false)
+    setNukeConfirmText('')
+  }
+
+  const handleSeedDatabase = async () => {
+    setSeedLoading(true)
+    setSeedResult(null)
+    try {
+      const res = await fetch('/api/admin/seed', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setSeedResult({ success: true, message: data.message || 'Seed data inserted' })
+      } else {
+        setSeedResult({ success: false, message: data.error || 'Seed failed' })
+      }
+    } catch {
+      setSeedResult({ success: false, message: 'Network error' })
+    }
+    setSeedLoading(false)
+  }
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -189,6 +232,113 @@ export default function SettingsClient({ adminUser }: SettingsClientProps) {
           </form>
         </div>
       </div>
+
+        {/* Database Management */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Database Management</h2>
+              <p className="text-sm text-gray-500">Reset and seed development data</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Seed Data */}
+            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600 mt-0.5">
+                  <Sprout className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900">Seed Data</h3>
+                  <p className="text-xs text-gray-500 mt-1">Insert vehicle brands/models/variants and location data (regions, provinces, cities, barangays). Safe to run multiple times — uses upsert logic.</p>
+                  {seedResult && (
+                    <div className={`mt-2 text-xs font-medium px-3 py-2 rounded-lg ${
+                      seedResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {seedResult.message}
+                    </div>
+                  )}
+                  <button
+                    onClick={handleSeedDatabase}
+                    disabled={seedLoading}
+                    className="mt-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {seedLoading ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Seeding...</>
+                    ) : (
+                      <><Sprout className="w-3.5 h-3.5" /> Seed Vehicles & Locations</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Nuke Database */}
+            <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-lg text-red-600 mt-0.5">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900">Nuke Database</h3>
+                  <p className="text-xs text-gray-500 mt-1">Delete ALL user data, auctions, listings, transactions, vehicles, and locations. Preserves system config, lookup tables, and your admin account. <strong className="text-red-600">This cannot be undone.</strong></p>
+                  {nukeResult && (
+                    <div className={`mt-2 text-xs font-medium px-3 py-2 rounded-lg ${
+                      nukeResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {nukeResult.message}
+                    </div>
+                  )}
+                  {!showNukeConfirm ? (
+                    <button
+                      onClick={() => setShowNukeConfirm(true)}
+                      className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Nuke Everything
+                    </button>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-red-700 font-medium">
+                        <AlertTriangle className="w-4 h-4" />
+                        Type <span className="font-mono bg-red-100 px-1.5 py-0.5 rounded">NUKE</span> to confirm
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nukeConfirmText}
+                          onChange={(e) => setNukeConfirmText(e.target.value)}
+                          placeholder="Type NUKE"
+                          className="px-3 py-2 bg-white border border-red-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-red-100 focus:border-red-400 outline-none w-28"
+                        />
+                        <button
+                          onClick={handleNukeDatabase}
+                          disabled={nukeLoading || nukeConfirmText !== 'NUKE'}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {nukeLoading ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Nuking...</>
+                          ) : (
+                            'Confirm Nuke'
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setShowNukeConfirm(false); setNukeConfirmText('') }}
+                          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* Sidebar Info */}
       <div className="space-y-6">

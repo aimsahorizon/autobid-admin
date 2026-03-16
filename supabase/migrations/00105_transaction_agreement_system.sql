@@ -39,7 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_agreement_fields_txn
 ALTER TABLE transaction_agreement_fields ENABLE ROW LEVEL SECURITY;
 
 -- Both buyer and seller can CRUD
-CREATE POLICY IF NOT EXISTS agreement_fields_select
+DROP POLICY IF EXISTS agreement_fields_select ON transaction_agreement_fields;
+CREATE POLICY agreement_fields_select
   ON transaction_agreement_fields FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM auction_transactions t
@@ -48,7 +49,8 @@ CREATE POLICY IF NOT EXISTS agreement_fields_select
     )
   );
 
-CREATE POLICY IF NOT EXISTS agreement_fields_insert
+DROP POLICY IF EXISTS agreement_fields_insert ON transaction_agreement_fields;
+CREATE POLICY agreement_fields_insert
   ON transaction_agreement_fields FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM auction_transactions t
@@ -57,7 +59,8 @@ CREATE POLICY IF NOT EXISTS agreement_fields_insert
     )
   );
 
-CREATE POLICY IF NOT EXISTS agreement_fields_update
+DROP POLICY IF EXISTS agreement_fields_update ON transaction_agreement_fields;
+CREATE POLICY agreement_fields_update
   ON transaction_agreement_fields FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM auction_transactions t
@@ -66,7 +69,8 @@ CREATE POLICY IF NOT EXISTS agreement_fields_update
     )
   );
 
-CREATE POLICY IF NOT EXISTS agreement_fields_delete
+DROP POLICY IF EXISTS agreement_fields_delete ON transaction_agreement_fields;
+CREATE POLICY agreement_fields_delete
   ON transaction_agreement_fields FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM auction_transactions t

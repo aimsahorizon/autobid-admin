@@ -22,7 +22,6 @@ import {
   CheckSquare,
   Trash2,
   AlertTriangle,
-  Archive,
   Shield
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
@@ -121,7 +120,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   }
   const [modalMode, setModalMode] = useState<'delete' | null>(null)
   const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
-  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [targetAuctionForDelete, setTargetAuctionForDelete] = useState<Auction | null>(null)
@@ -278,7 +276,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   const openDeleteModal = (auction: Auction | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
     if (auction) setTargetAuctionForDelete(auction)
     setActionScope(scope)
-    setDeleteType('soft')
     setModalMode('delete')
     setError(null)
   }
@@ -297,23 +294,17 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
     try {
       if (actionScope === 'single' && targetAuctionForDelete) {
-        result = await bulkDeleteAuctions([targetAuctionForDelete.id], deleteType)
+        result = await bulkDeleteAuctions([targetAuctionForDelete.id])
       } else if (actionScope === 'selected') {
-        result = await bulkDeleteAuctions(Array.from(selectedIds), deleteType)
+        result = await bulkDeleteAuctions(Array.from(selectedIds))
       } else if (actionScope === 'all') {
-        result = await deleteAllAuctions(deleteType)
+        result = await deleteAllAuctions()
       }
 
       if (result?.success) {
         // Optimistic update
         if (actionScope === 'single' && targetAuctionForDelete) {
-          if (deleteType === 'hard') {
-            setAuctions(prev => prev.filter(a => a.id !== targetAuctionForDelete.id))
-          } else {
-             // If soft delete (cancel), we might keep it but update status, or remove if filter is active
-             // For simplicity, just refresh
-             await refreshData()
-          }
+          setAuctions(prev => prev.filter(a => a.id !== targetAuctionForDelete.id))
         } else {
            await refreshData()
         }
@@ -1601,108 +1592,23 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
               <div className="mb-6 space-y-4">
 
-                {/* Deletion Type Selection */}
-
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-
-                  <button
-
-                    onClick={() => setDeleteType('soft')}
-
-                    className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-
-                      deleteType === 'soft' 
-
-                        ? 'bg-white text-purple-700 shadow-sm' 
-
-                        : 'text-gray-600 hover:text-gray-800'
-
-                    }`}
-
-                  >
-
-                    Cancel (Soft)
-
-                  </button>
-
-                  <button
-
-                    onClick={() => setDeleteType('hard')}
-
-                    className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-
-                      deleteType === 'hard' 
-
-                        ? 'bg-white text-red-700 shadow-sm' 
-
-                        : 'text-gray-600 hover:text-gray-800'
-
-                    }`}
-
-                  >
-
-                    Delete (Hard)
-
-                  </button>
-
-                </div>
-
-  
-
                 <div className="bg-gray-50 rounded-lg p-4">
-
                   <p className="text-sm text-gray-600 mb-2">
-
-                    {deleteType === 'soft' ? (
-
-                      <>
-
-                        <strong>Soft Delete</strong> will mark auctions as <strong>Cancelled</strong>. They will still exist in the database.
-
-                      </>
-
-                    ) : (
-
-                      <>
-
-                        <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the auction data.
-
-                      </>
-
-                    )}
-
+                    <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the auction data.
                   </p>
 
-  
-
-                  {deleteType === 'hard' && (
-
-                    <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
-
-                      <li>Removes auction listing</li>
-
-                      <li>Deletes all associated bids and photos</li>
-
-                      <li>This action cannot be undone</li>
-
-                    </ul>
-
-                  )}
-
+                  <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
+                    <li>Removes auction listing</li>
+                    <li>Deletes all associated bids and photos</li>
+                    <li>This action cannot be undone</li>
+                  </ul>
                   
-
-                  {actionScope === 'all' && deleteType === 'hard' && (
-
+                  {actionScope === 'all' && (
                      <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
-
                        WARNING: You are about to wipe the entire auction database!
-
                      </p>
-
                   )}
-
                 </div>
-
               </div>
 
   
@@ -1724,35 +1630,18 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                 </button>
 
                 <button
-
                   onClick={handleExecuteDelete}
-
                   disabled={loading}
-
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 ${
-
-                    deleteType === 'hard' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
-
-                  }`}
-
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 bg-red-600 hover:bg-red-700"
                 >
-
                   {loading ? (
-
                     <RefreshCw className="w-4 h-4 animate-spin" />
-
                   ) : (
-
                     <>
-
-                      {deleteType === 'hard' ? <Trash2 className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-
-                      Confirm {deleteType === 'soft' ? 'Cancel' : 'Delete'}
-
+                      <Trash2 className="w-4 h-4" />
+                      Confirm Delete
                     </>
-
                   )}
-
                 </button>
 
               </div>

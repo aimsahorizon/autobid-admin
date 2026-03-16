@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, MessageSquare, Power, AlertTriangle, FileText, History } from 'lucide-react'
+import { CheckCircle, XCircle, MessageSquare, Power, FileText, History } from 'lucide-react'
 import { ListingDetailModel } from '@/lib/types/listing-detail'
 import Modal from '@/components/ui/Modal'
 
@@ -16,10 +16,10 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<'approve' | 'reject' | 'cancel' | 'end' | null>(null)
+  const [modalType, setModalType] = useState<'approve' | 'reject' | null>(null)
   const [reason, setReason] = useState('')
 
-  const openModal = (type: 'approve' | 'reject' | 'cancel' | 'end') => {
+  const openModal = (type: 'approve' | 'reject') => {
     setModalType(type)
     setModalOpen(true)
     setReason('')
@@ -34,9 +34,9 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
   const handleAction = async () => {
     if (!modalType) return
 
-    // Validate rejection/cancellation reason
-    if ((modalType === 'reject' || modalType === 'cancel') && !reason.trim()) {
-      alert(`Please provide a reason for ${modalType === 'reject' ? 'rejection' : 'cancellation'}.`)
+    // Validate rejection reason
+    if (modalType === 'reject' && !reason.trim()) {
+      alert('Please provide a reason for rejection.')
       return
     }
 
@@ -45,18 +45,61 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
 
     try {
       if (modalType === 'approve') {
-        // Set admin_status to approved (would need this column added to auctions table)
-        // Also check auto_live_after_approval flag
-        const newStatus = listing.auto_live_after_approval ? 'live' : 'scheduled'
-        
+        // Determine correct status based on seller's configuration:
+        // 1. auto_live_after_approval = true → go live immediately
+        // 2. future start_time is set → scheduled (will go live at that time)
+        // 3. otherwise → approved (seller decides when to go live)
+        let newStatus: string
+        const updateFields: Record<string, unknown> = {
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: adminUserId,
+          review_notes: reason || 'Approved by admin',
+        }
+
+        if (listing.auto_live_after_approval) {
+          newStatus = 'live'
+          const now = new Date()
+          // Use seller's configured duration (end - start), or fall back to their end_time if still valid
+          if (listing.auction_start_time && listing.auction_end_time) {
+            const sellerStart = new Date(listing.auction_start_time)
+            const sellerEnd = new Date(listing.auction_end_time)
+            const durationMs = sellerEnd.getTime() - sellerStart.getTime()
+            if (durationMs > 0) {
+              // Preserve the seller's intended duration, starting from now
+              updateFields.start_time = now.toISOString()
+              updateFields.end_time = new Date(now.getTime() + durationMs).toISOString()
+            } else {
+              // Invalid duration, just use the seller's end_time if it's in the future
+              updateFields.start_time = now.toISOString()
+              updateFields.end_time = sellerEnd > now ? sellerEnd.toISOString() : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          } else if (listing.auction_end_time && new Date(listing.auction_end_time) > now) {
+            // No start time but valid end time
+            updateFields.start_time = now.toISOString()
+          } else {
+            // No valid times at all, fallback to 7 days
+            updateFields.start_time = now.toISOString()
+            updateFields.end_time = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          }
+        } else if (listing.auction_start_time && new Date(listing.auction_start_time) > new Date()) {
+          // Seller set a future start time → schedule it
+          newStatus = 'scheduled'
+        } else {
+          // No auto-live, no future schedule → approved, seller decides
+          newStatus = 'approved'
+        }
+
+        const { data: statusData } = await supabase
+          .from('auction_statuses')
+          .select('id')
+          .eq('status_name', newStatus)
+          .single()
+
+        updateFields.status_id = statusData?.id
+
         await supabase
           .from('auctions')
-          .update({
-            status_id: (await supabase.from('auction_statuses').select('id').eq('status_name', newStatus).single()).data?.id,
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: adminUserId,
-            review_notes: reason || 'Approved by admin'
-          })
+          .update(updateFields)
           .eq('id', listing.id)
 
         // Log moderation action
@@ -65,16 +108,17 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
             auction_id: listing.id,
             moderator_id: adminUserId,
             action: 'approve',
-            notes: reason || 'Approved'
+            notes: reason || `Approved → ${newStatus}`
           })
         }
       } else if (modalType === 'reject') {
-        const rejectedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'cancelled').single()).data?.id
+        const rejectedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'rejected').single()).data?.id
 
         await supabase
           .from('auctions')
           .update({
             status_id: rejectedStatusId,
+            rejection_reason: reason,
             reviewed_at: new Date().toISOString(),
             reviewed_by: adminUserId,
             review_notes: reason
@@ -88,45 +132,6 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
             action: 'reject',
             reason: reason,
             notes: reason
-          })
-        }
-      } else if (modalType === 'cancel') {
-        const cancelledStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'cancelled').single()).data?.id
-
-        await supabase
-          .from('auctions')
-          .update({
-            status_id: cancelledStatusId,
-            review_notes: reason
-          })
-          .eq('id', listing.id)
-
-        if (adminUserId) {
-          await supabase.from('auction_moderation').insert({
-            auction_id: listing.id,
-            moderator_id: adminUserId,
-            action: 'cancel',
-            reason: reason,
-            notes: reason
-          })
-        }
-      } else if (modalType === 'end') {
-        const endedStatusId = (await supabase.from('auction_statuses').select('id').eq('status_name', 'ended').single()).data?.id
-
-        await supabase
-          .from('auctions')
-          .update({
-            status_id: endedStatusId,
-            end_time: new Date().toISOString()
-          })
-          .eq('id', listing.id)
-
-        if (adminUserId) {
-          await supabase.from('auction_moderation').insert({
-            auction_id: listing.id,
-            moderator_id: adminUserId,
-            action: 'end_early',
-            notes: 'Admin ended auction early'
           })
         }
       }
@@ -143,7 +148,6 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
 
   const isPending = listing.status === 'pending_approval'
   const isApproved = listing.status === 'scheduled' || listing.status === 'live'
-  const isLive = listing.status === 'live'
   const canMakeLive = listing.status === 'scheduled'
 
   return (
@@ -185,52 +189,18 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
           )}
 
           {/* Approved/Scheduled Listing Actions */}
-          {isApproved && (
-            <>
-              {canMakeLive && (
-                <button
-                  onClick={() => {/* Implement make live */}}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Power className="w-5 h-5" />
-                  Make Live Now
-                </button>
-              )}
-
-              <button
-                onClick={() => {/* Implement revoke */}}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <XCircle className="w-5 h-5" />
-                Revoke Approval
-              </button>
-            </>
+          {isApproved && canMakeLive && (
+            <button
+              onClick={() => {/* Implement make live */}}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Power className="w-5 h-5" />
+              Make Live Now
+            </button>
           )}
 
-          {/* Active Listing Actions */}
-          {isLive && (
-            <>
-              <button
-                onClick={() => openModal('end')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <AlertTriangle className="w-5 h-5" />
-                End Auction
-              </button>
 
-              <button
-                onClick={() => openModal('cancel')}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <XCircle className="w-5 h-5" />
-                Cancel Listing
-              </button>
-            </>
-          )}
 
           {/* Common Actions */}
           <div className="pt-4 border-t border-gray-200 space-y-3">
@@ -266,18 +236,14 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
           <h3 className="text-xl font-semibold text-gray-900 mb-4">
             {modalType === 'approve' && 'Approve Listing'}
             {modalType === 'reject' && 'Reject Listing'}
-            {modalType === 'cancel' && 'Cancel Listing'}
-            {modalType === 'end' && 'End Auction'}
           </h3>
 
           <p className="text-gray-600 mb-4">
             {modalType === 'approve' && 'This will approve the listing for display. The listing will go live based on its configuration.'}
             {modalType === 'reject' && 'This will reject the listing and notify the seller. Please provide a reason.'}
-            {modalType === 'cancel' && 'This will cancel the active listing. Please provide a reason.'}
-            {modalType === 'end' && 'This will immediately end the auction and process the winner (if applicable).'}
           </p>
 
-          {(modalType === 'reject' || modalType === 'cancel' || modalType === 'approve') && (
+          {(modalType === 'reject' || modalType === 'approve') && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {modalType === 'approve' ? 'Notes (Optional)' : 'Reason *'}
@@ -288,7 +254,7 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
                 placeholder={
                   modalType === 'approve' 
                     ? 'Optional approval notes...' 
-                    : `Enter ${modalType === 'reject' ? 'rejection' : 'cancellation'} reason...`
+                    : 'Enter rejection reason...'
                 }
                 rows={4}
                 required={modalType !== 'approve'}
