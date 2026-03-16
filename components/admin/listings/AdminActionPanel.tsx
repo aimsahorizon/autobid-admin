@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, MessageSquare, Power, FileText, History } from 'lucide-react'
+import { CheckCircle, XCircle, Power, FileText, History } from 'lucide-react'
 import { ListingDetailModel } from '@/lib/types/listing-detail'
 import Modal from '@/components/ui/Modal'
 
@@ -175,15 +175,6 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
               >
                 <XCircle className="w-5 h-5" />
                 Reject Listing
-              </button>
-
-              <button
-                onClick={() => {/* Implement request changes */}}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <MessageSquare className="w-5 h-5" />
-                Request Changes
               </button>
             </>
           )}

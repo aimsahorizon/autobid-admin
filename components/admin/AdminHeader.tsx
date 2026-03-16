@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Bell, LogOut, User, ChevronDown } from 'lucide-react'
+import { LogOut, User, ChevronDown } from 'lucide-react'
 
 interface AdminHeaderProps {
   user: {
@@ -44,12 +44,6 @@ export default function AdminHeader({ user }: AdminHeaderProps) {
   return (
     <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-end px-6 transition-all">
       <div className="flex items-center gap-6">
-        {/* Notifications */}
-        <button className="relative group p-2 rounded-full hover:bg-gray-50 transition-colors">
-          <Bell className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
-          <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-        </button>
-
         {/* User Menu */}
         <div className="relative" ref={dropdownRef}>
           <button
