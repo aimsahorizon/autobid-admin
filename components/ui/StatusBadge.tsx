@@ -30,7 +30,7 @@ export function getStatusVariant(status: string): StatusVariant {
   if (['approved', 'completed', 'active', 'live', 'sold', 'won', 'verified', 'finalized', 'resolved'].includes(statusLower)) {
     return 'success'
   }
-  if (['pending', 'pending_approval', 'under_review', 'scheduled', 'in_transaction', 'pending_finalization', 'reviewing'].includes(statusLower)) {
+  if (['pending', 'pending_approval', 'under_review', 'scheduled', 'in_transaction', 'pending_finalization', 'reviewing', 'appeal_pending'].includes(statusLower)) {
     return 'warning'
   }
   if (['rejected', 'cancelled', 'failed', 'expired', 'deal_failed', 'lost', 'dismissed'].includes(statusLower)) {

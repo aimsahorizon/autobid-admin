@@ -15,6 +15,7 @@ import {
   Menu,
   MapPin,
   Flag,
+  MessageSquare,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Listings', href: '/admin/listings', icon: Car },
   { name: 'Vehicle DB', href: '/admin/vehicles', icon: Database },
   { name: 'KYC Verification', href: '/admin/kyc', icon: FileCheck },
+  { name: 'KYC Appeals', href: '/admin/kyc/appeals', icon: MessageSquare },
   { name: 'Auctions', href: '/admin/auctions', icon: Gavel },
   { name: 'Transactions', href: '/admin/transactions', icon: CreditCard },
   { name: 'Reports', href: '/admin/reports', icon: Flag },

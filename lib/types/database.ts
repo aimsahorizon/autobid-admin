@@ -55,7 +55,7 @@ export interface KycDocument {
 
 export interface KycStatus {
   id: string
-  status_name: 'pending' | 'under_review' | 'approved' | 'rejected' | 'expired'
+  status_name: 'pending' | 'under_review' | 'approved' | 'rejected' | 'expired' | 'appeal_pending' | 'suspended'
   display_name: string
 }
 
