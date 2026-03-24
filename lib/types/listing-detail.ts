@@ -92,6 +92,7 @@ export interface ListingDetailModel {
   deposit_amount: number
   enable_incremental_bidding: boolean | null
   auto_live_after_approval: boolean | null
+  schedule_live_mode: 'auto_live' | 'auto_schedule' | 'manual' | null
   allows_installment: boolean | null
   snipe_guard_enabled: boolean | null
   snipe_guard_threshold_seconds: number | null

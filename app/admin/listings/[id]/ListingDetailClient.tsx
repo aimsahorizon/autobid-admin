@@ -113,7 +113,8 @@ export default function ListingDetailClient({ listing: rawListing, adminUserId }
     min_bid_increment: rawListing.min_bid_increment as number | null,
     deposit_amount: Number(rawListing.deposit_amount || 0),
     enable_incremental_bidding: rawListing.enable_incremental_bidding as boolean | null,
-    auto_live_after_approval: null, // Would need to be added
+    auto_live_after_approval: rawListing.auto_live_after_approval as boolean | null,
+    schedule_live_mode: (rawListing.schedule_live_mode as string | null) as 'auto_live' | 'auto_schedule' | 'manual' | null,
     allows_installment: null, // Would need to be added
     snipe_guard_enabled: null, // Would need to be added
     snipe_guard_threshold_seconds: null, // Would need to be added

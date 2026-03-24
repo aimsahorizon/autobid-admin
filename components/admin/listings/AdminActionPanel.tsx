@@ -46,9 +46,9 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
     try {
       if (modalType === 'approve') {
         // Determine correct status based on seller's configuration:
-        // 1. auto_live_after_approval = true → go live immediately
-        // 2. future start_time is set → scheduled (will go live at that time)
-        // 3. otherwise → approved (seller decides when to go live)
+        // 1. auto_live / schedule_live_mode='auto_live' → go live immediately
+        // 2. schedule_live_mode='auto_schedule' or future start_time → scheduled
+        // 3. otherwise (manual) → approved (seller decides when to go live)
         let newStatus: string
         const updateFields: Record<string, unknown> = {
           reviewed_at: new Date().toISOString(),
@@ -56,36 +56,32 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
           review_notes: reason || 'Approved by admin',
         }
 
-        if (listing.auto_live_after_approval) {
+        const isAutoLive = listing.auto_live_after_approval === true || listing.schedule_live_mode === 'auto_live'
+        const isAutoSchedule = listing.schedule_live_mode === 'auto_schedule'
+
+        if (isAutoLive) {
           newStatus = 'live'
           const now = new Date()
-          // Use seller's configured duration (end - start), or fall back to their end_time if still valid
           if (listing.auction_start_time && listing.auction_end_time) {
             const sellerStart = new Date(listing.auction_start_time)
             const sellerEnd = new Date(listing.auction_end_time)
             const durationMs = sellerEnd.getTime() - sellerStart.getTime()
             if (durationMs > 0) {
-              // Preserve the seller's intended duration, starting from now
               updateFields.start_time = now.toISOString()
               updateFields.end_time = new Date(now.getTime() + durationMs).toISOString()
             } else {
-              // Invalid duration, just use the seller's end_time if it's in the future
               updateFields.start_time = now.toISOString()
               updateFields.end_time = sellerEnd > now ? sellerEnd.toISOString() : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
             }
           } else if (listing.auction_end_time && new Date(listing.auction_end_time) > now) {
-            // No start time but valid end time
             updateFields.start_time = now.toISOString()
           } else {
-            // No valid times at all, fallback to 7 days
             updateFields.start_time = now.toISOString()
             updateFields.end_time = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
           }
-        } else if (listing.auction_start_time && new Date(listing.auction_start_time) > new Date()) {
-          // Seller set a future start time → schedule it
+        } else if (isAutoSchedule || (listing.auction_start_time && new Date(listing.auction_start_time) > new Date())) {
           newStatus = 'scheduled'
         } else {
-          // No auto-live, no future schedule → approved, seller decides
           newStatus = 'approved'
         }
 
