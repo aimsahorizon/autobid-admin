@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Car, Eye, Gavel, Star, Trash2, CheckSquare, Square, AlertTriangle, Loader2, Shield } from 'lucide-react'
+import { Search, Car, Eye, Gavel, Star, Trash2, CheckSquare, Square, AlertTriangle, Loader2, Shield, Loader } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { bulkDeleteListings, deleteAllListings } from './actions'
 import { createClient } from '@/lib/supabase/client'
@@ -66,6 +66,7 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
   const [modalMode, setModalMode] = useState<'delete' | null>(null)
   const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
   const [loading, setLoading] = useState(false)
+  const [navigatingId, setNavigatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [targetListingForDelete, setTargetListingForDelete] = useState<Listing | null>(null)
 
@@ -340,13 +341,20 @@ export default function ListingsClient({ initialListings, statuses }: ListingsCl
           filteredListings.map((listing) => (
             <div
               key={listing.id}
-              onClick={() => router.push(`/admin/listings/${listing.id}`)}
+              onClick={() => { setNavigatingId(listing.id); router.push(`/admin/listings/${listing.id}`) }}
               className={`group relative bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-all cursor-pointer ${
                   !listing.is_active ? 'opacity-75 bg-gray-50' : ''
               } ${
                   selectedIds.has(listing.id) ? 'border-purple-500 ring-2 ring-purple-500' : 'border-gray-200'
+              } ${
+                  navigatingId === listing.id ? 'opacity-60 pointer-events-none' : ''
               }`}
             >
+              {navigatingId === listing.id && (
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/50">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                </div>
+              )}
               {/* Card Actions */}
               <div className="absolute top-3 right-3 z-20 flex gap-2">
                 {isSelectionEnabled && (

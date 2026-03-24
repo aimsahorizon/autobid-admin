@@ -13,6 +13,7 @@ import {
   User,
   Eye,
   ChevronRight,
+  Loader2,
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -53,6 +54,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
   const [transactions] = useState(initialTransactions)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_transaction' | 'sold' | 'deal_failed'>('all')
+  const [navigatingId, setNavigatingId] = useState<string | null>(null)
   
   const filteredTransactions = transactions.filter((tx) => {
     const vehicle = tx.auctions?.auction_vehicles
@@ -280,10 +282,11 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
                     <div className="flex items-center gap-3">
                       <StatusBadge status={tx.status === 'sold' ? 'Finalized' : tx.status} />
                       <button
-                        onClick={() => router.push(`/admin/transactions/${tx.id}`)}
-                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        onClick={() => { setNavigatingId(tx.id); router.push(`/admin/transactions/${tx.id}`) }}
+                        disabled={navigatingId === tx.id}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
                       >
-                        <Eye className="w-4 h-4" />
+                        {navigatingId === tx.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                         View Details
                       </button>
                     </div>
@@ -399,11 +402,12 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
 
                     {/* View Full Details Link */}
                     <button
-                      onClick={() => router.push(`/admin/transactions/${tx.id}`)}
-                      className="mt-4 w-full py-2 text-center text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1"
+                      onClick={() => { setNavigatingId(tx.id); router.push(`/admin/transactions/${tx.id}`) }}
+                      disabled={navigatingId === tx.id}
+                      className="mt-4 w-full py-2 text-center text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                     >
-                      View Complete Form Details
-                      <ChevronRight className="w-4 h-4" />
+                      {navigatingId === tx.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'View Complete Form Details'}
+                      {navigatingId !== tx.id && <ChevronRight className="w-4 h-4" />}
                     </button>
                   </div>
                 )}
