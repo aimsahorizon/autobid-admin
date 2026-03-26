@@ -14,6 +14,7 @@ import {
   Eye,
   ChevronRight,
   Loader2,
+  Scale,
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -46,14 +47,14 @@ type Transaction = Record<string, any> & {
 
 interface TransactionsClientProps {
   initialTransactions: Transaction[]
-  stats: { pendingReview: number; inProgress: number; completed: number; failed: number }
+  stats: { pendingReview: number; inProgress: number; completed: number; failed: number; disputed: number }
 }
 
 export default function TransactionsClient({ initialTransactions, stats }: TransactionsClientProps) {
   const router = useRouter()
   const [transactions] = useState(initialTransactions)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'pending' | 'in_transaction' | 'sold' | 'deal_failed'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'in_transaction' | 'sold' | 'deal_failed' | 'disputed'>('all')
   const [navigatingId, setNavigatingId] = useState<string | null>(null)
   
   const filteredTransactions = transactions.filter((tx) => {
@@ -117,7 +118,7 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
   return (
     <>
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-orange-100 rounded-lg">
@@ -162,6 +163,17 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
             </div>
           </div>
         </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Scale className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-purple-700">{stats.disputed}</p>
+              <p className="text-sm text-purple-600">Disputed</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -178,11 +190,12 @@ export default function TransactionsClient({ initialTransactions, stats }: Trans
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {(['all', 'pending', 'in_transaction', 'sold', 'deal_failed'] as const).map((status) => {
+            {(['all', 'pending', 'in_transaction', 'sold', 'deal_failed', 'disputed'] as const).map((status) => {
               let label = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
               if (status === 'in_transaction') label = 'In Progress'
               if (status === 'pending') label = 'Pending Finalization'
               if (status === 'sold') label = 'Finalized'
+              if (status === 'disputed') label = `Disputed${stats.disputed > 0 ? ` (${stats.disputed})` : ''}`
               
               return (
                 <button

@@ -16,8 +16,13 @@ import {
   MessageSquare,
   Shield,
   Car,
+  Scale,
+  AlertTriangle,
+  Camera,
+  Loader2,
 } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import { createClient } from '@/lib/supabase/client'
 
 interface TransactionForm {
   id: string
@@ -85,6 +90,7 @@ interface TransactionDetailClientProps {
   timeline: TimelineEvent[]
   chat: ChatMessage[]
   agreementFields: AgreementField[]
+  adminUserId: string
 }
 
 export default function TransactionDetailClient({
@@ -93,9 +99,15 @@ export default function TransactionDetailClient({
   timeline,
   chat,
   agreementFields,
+  adminUserId,
 }: TransactionDetailClientProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'agreement' | 'forms' | 'timeline' | 'chat'>('agreement')
+  const [resolving, setResolving] = useState(false)
+  const [showResolveDialog, setShowResolveDialog] = useState(false)
+  const [selectedResolution, setSelectedResolution] = useState<'refund_both' | 'penalize_seller' | 'penalize_buyer' | null>(null)
+  const [adminNotes, setAdminNotes] = useState('')
+  const [resolveError, setResolveError] = useState<string | null>(null)
 
   const groupedFields = agreementFields.reduce((acc, field) => {
     const category = field.category || 'General'
@@ -159,10 +171,41 @@ export default function TransactionDetailClient({
         return <CheckCircle className="w-4 h-4" />
       case 'cancelled':
         return <XCircle className="w-4 h-4" />
+      case 'disputed':
+        return <Scale className="w-4 h-4" />
       default:
         return <Clock className="w-4 h-4" />
     }
   }
+
+  const isDisputed = transaction.status === 'disputed'
+  const isDisputeResolved = transaction.dispute_resolution != null
+
+  const handleResolveDispute = async () => {
+    if (!selectedResolution || !adminNotes.trim()) return
+    setResolving(true)
+    setResolveError(null)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.rpc('resolve_dispute', {
+        p_transaction_id: transaction.id,
+        p_admin_id: adminUserId,
+        p_resolution: selectedResolution,
+        p_admin_notes: adminNotes.trim(),
+      })
+      if (error) throw error
+      const result = data as { success: boolean; error?: string } | null
+      if (!result?.success) throw new Error(result?.error || 'Failed to resolve dispute')
+      router.refresh()
+      setShowResolveDialog(false)
+    } catch (err) {
+      setResolveError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  const rejectionPhotos = transaction.buyer_rejection_photos as string[] | null
 
   return (
     <div className="space-y-6">
@@ -325,10 +368,186 @@ export default function TransactionDetailClient({
         </div>
       </div>
 
+      {/* Dispute Investigation Panel */}
+      {(isDisputed || isDisputeResolved) && (
+        <div className={`rounded-xl border-2 p-6 ${isDisputeResolved ? 'bg-gray-50 border-gray-300' : 'bg-purple-50 border-purple-300'}`}>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Scale className={`w-5 h-5 ${isDisputeResolved ? 'text-gray-700' : 'text-purple-700'}`} />
+            <span className={isDisputeResolved ? 'text-gray-900' : 'text-purple-900'}>
+              {isDisputeResolved ? 'Dispute Resolved' : 'Dispute Investigation'}
+            </span>
+          </h3>
+
+          {/* Buyer's Rejection */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg border border-red-200 p-4">
+              <h4 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Buyer Rejection
+              </h4>
+              <p className="text-sm text-gray-700">
+                {typeof transaction.buyer_rejection_reason === 'string'
+                  ? transaction.buyer_rejection_reason
+                  : 'No reason provided'}
+              </p>
+              {rejectionPhotos && rejectionPhotos.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                    <Camera className="w-3 h-3" />
+                    Evidence Photos ({rejectionPhotos.length})
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {rejectionPhotos.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`Evidence ${i + 1}`} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:opacity-75 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Seller's Objection */}
+            <div className="bg-white rounded-lg border border-orange-200 p-4">
+              <h4 className="font-medium text-orange-800 mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Seller Objection
+              </h4>
+              <p className="text-sm text-gray-700">
+                {typeof transaction.seller_objection_reason === 'string'
+                  ? transaction.seller_objection_reason
+                  : 'No objection reason provided'}
+              </p>
+              {typeof transaction.seller_objected_at === 'string' && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Objected at: {new Date(transaction.seller_objected_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {/* Resolution Result (if already resolved) */}
+            {isDisputeResolved && (
+              <div className="bg-white rounded-lg border border-green-200 p-4">
+                <h4 className="font-medium text-green-800 mb-2 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  Resolution
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Decision:</span>
+                    <StatusBadge status={String(transaction.dispute_resolution).replace(/_/g, ' ')} />
+                  </div>
+                  {typeof transaction.dispute_admin_notes === 'string' && (
+                    <div>
+                      <span className="text-gray-500">Admin Notes:</span>
+                      <p className="text-gray-700 mt-1 bg-gray-50 p-2 rounded">{transaction.dispute_admin_notes}</p>
+                    </div>
+                  )}
+                  {typeof transaction.dispute_resolved_at === 'string' && (
+                    <p className="text-xs text-gray-500">
+                      Resolved at: {new Date(transaction.dispute_resolved_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Resolution Actions (only if not yet resolved) */}
+            {isDisputed && !isDisputeResolved && (
+              <div className="bg-white rounded-lg border border-purple-200 p-4">
+                <h4 className="font-medium text-purple-800 mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Resolve Dispute
+                </h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Review the chat history and evidence above, then select a resolution.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => { setSelectedResolution('refund_both'); setShowResolveDialog(true) }}
+                    className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4 mx-auto mb-1" />
+                    Refund Both
+                  </button>
+                  <button
+                    onClick={() => { setSelectedResolution('penalize_seller'); setShowResolveDialog(true) }}
+                    className="px-4 py-3 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors"
+                  >
+                    <AlertTriangle className="w-4 h-4 mx-auto mb-1" />
+                    Penalize Seller
+                  </button>
+                  <button
+                    onClick={() => { setSelectedResolution('penalize_buyer'); setShowResolveDialog(true) }}
+                    className="px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    <AlertTriangle className="w-4 h-4 mx-auto mb-1" />
+                    Penalize Buyer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Dispute Confirmation Dialog */}
+      {showResolveDialog && selectedResolution && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Confirm Dispute Resolution</h3>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-sm text-gray-600">
+                Resolution: <span className="font-semibold text-gray-900">{selectedResolution.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedResolution === 'refund_both'
+                  ? 'Both deposits will be refunded. No penalties applied.'
+                  : selectedResolution === 'penalize_seller'
+                  ? 'Both deposits refunded. Seller will be suspended for 30 days.'
+                  : 'Both deposits refunded. Buyer will be suspended for 30 days.'}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Admin Notes <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows={4}
+                placeholder="Explain the reasoning for this resolution..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+              />
+            </div>
+            {resolveError && (
+              <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{resolveError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowResolveDialog(false); setSelectedResolution(null); setAdminNotes(''); setResolveError(null) }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                disabled={resolving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResolveDispute}
+                disabled={resolving || !adminNotes.trim()}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {resolving && <Loader2 className="w-4 h-4 animate-spin" />}
+                Confirm Resolution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="border-b border-gray-200">
-          <div className="flex">
+          <div className="flex flex-wrap">
             <button
               onClick={() => setActiveTab('agreement')}
               className={`px-6 py-4 font-medium transition-colors ${
@@ -653,6 +872,8 @@ export default function TransactionDetailClient({
                             ? 'bg-green-100 text-green-600'
                             : event.event_type === 'cancelled'
                             ? 'bg-red-100 text-red-600'
+                            : event.event_type === 'disputed'
+                            ? 'bg-purple-100 text-purple-600'
                             : 'bg-purple-100 text-purple-600'
                         }`}>
                           {getTimelineIcon(event.event_type)}
