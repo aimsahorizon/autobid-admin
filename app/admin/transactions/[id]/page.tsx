@@ -34,6 +34,8 @@ async function getTransaction(id: string) {
     .select(`
       id,
       auction_id,
+      seller_id,
+      buyer_id,
       agreed_price,
       status,
       seller_form_submitted,

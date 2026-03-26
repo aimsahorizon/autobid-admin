@@ -187,19 +187,29 @@ export default function TransactionDetailClient({
     setResolveError(null)
     try {
       const supabase = createClient()
+
+      // Determine penalized user ID based on resolution type
+      let penalizedUserId: string | null = null
+      if (selectedResolution === 'penalize_seller') {
+        penalizedUserId = transaction.seller_id as string
+      } else if (selectedResolution === 'penalize_buyer') {
+        penalizedUserId = transaction.buyer_id as string
+      }
+
       const { data, error } = await supabase.rpc('resolve_dispute', {
         p_transaction_id: transaction.id,
         p_admin_id: adminUserId,
         p_resolution: selectedResolution,
+        p_penalized_user_id: penalizedUserId,
         p_admin_notes: adminNotes.trim(),
       })
-      if (error) throw error
+      if (error) throw new Error(error.message)
       const result = data as { success: boolean; error?: string } | null
       if (!result?.success) throw new Error(result?.error || 'Failed to resolve dispute')
       router.refresh()
       setShowResolveDialog(false)
     } catch (err) {
-      setResolveError(err instanceof Error ? err.message : 'An error occurred')
+      setResolveError(err instanceof Error ? err.message : String(err))
     } finally {
       setResolving(false)
     }
