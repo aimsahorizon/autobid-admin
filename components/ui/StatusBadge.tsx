@@ -36,6 +36,9 @@ export function getStatusVariant(status: string): StatusVariant {
   if (['rejected', 'cancelled', 'failed', 'expired', 'deal_failed', 'lost', 'dismissed'].includes(statusLower)) {
     return 'error'
   }
+  if (['disputed'].includes(statusLower)) {
+    return 'purple'
+  }
   if (['draft', 'ended', 'unsold', 'outbid', 'refunded'].includes(statusLower)) {
     return 'default'
   }

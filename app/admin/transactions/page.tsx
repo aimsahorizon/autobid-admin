@@ -33,6 +33,7 @@ async function getTransactionStats() {
     { count: inProgress },
     { count: completed },
     { count: failed },
+    { count: disputed },
   ] = await Promise.all([
     supabase
       .from('auction_transactions')
@@ -52,6 +53,10 @@ async function getTransactionStats() {
       .from('auction_transactions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'deal_failed'),
+    supabase
+      .from('auction_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'disputed'),
   ])
 
   return {
@@ -59,6 +64,7 @@ async function getTransactionStats() {
     inProgress: inProgress || 0,
     completed: completed || 0,
     failed: failed || 0,
+    disputed: disputed || 0,
   }
 }
 
@@ -77,6 +83,9 @@ async function getTransactions() {
       buyer_confirmed,
       admin_approved,
       admin_notes,
+      buyer_rejection_reason,
+      seller_objection_reason,
+      dispute_resolution,
       created_at,
       completed_at,
       auctions (

@@ -174,7 +174,7 @@ export interface AuctionTransaction {
   seller_id: string
   buyer_id: string
   agreed_price: number
-  status: 'in_transaction' | 'sold' | 'deal_failed'
+  status: 'in_transaction' | 'sold' | 'deal_failed' | 'disputed'
   seller_form_submitted: boolean
   buyer_form_submitted: boolean
   seller_confirmed: boolean
@@ -182,6 +182,14 @@ export interface AuctionTransaction {
   admin_approved: boolean
   created_at: string
   completed_at: string | null
+  buyer_rejection_reason: string | null
+  buyer_rejection_photos: string[] | null
+  seller_objection_reason: string | null
+  seller_objected_at: string | null
+  dispute_resolution: 'refund_both' | 'penalize_seller' | 'penalize_buyer' | null
+  dispute_resolved_at: string | null
+  dispute_resolved_by: string | null
+  dispute_admin_notes: string | null
   auctions?: Auction
   seller?: User
   buyer?: User

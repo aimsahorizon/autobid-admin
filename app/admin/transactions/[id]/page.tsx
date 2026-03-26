@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import TransactionDetailClient from './TransactionDetailClient'
 
 // Helper to transform Supabase relation arrays to single objects
@@ -43,6 +43,15 @@ async function getTransaction(id: string) {
       admin_approved,
       admin_notes,
       reviewed_by,
+      buyer_rejection_reason,
+      buyer_rejection_photos,
+      buyer_acceptance_status,
+      seller_objection_reason,
+      seller_objected_at,
+      dispute_resolution,
+      dispute_resolved_at,
+      dispute_resolved_by,
+      dispute_admin_notes,
       created_at,
       updated_at,
       completed_at,
@@ -110,18 +119,26 @@ async function getTransactionAgreementFields(transactionId: string) {
   return data || []
 }
 
+async function getAdminUserId() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  return user.id
+}
+
 export default async function TransactionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [transaction, forms, timeline, chat, agreementFields] = await Promise.all([
+  const [transaction, forms, timeline, chat, agreementFields, adminUserId] = await Promise.all([
     getTransaction(id),
     getTransactionForms(id),
     getTransactionTimeline(id),
     getTransactionChat(id),
     getTransactionAgreementFields(id),
+    getAdminUserId(),
   ])
 
   if (!transaction) {
@@ -135,6 +152,7 @@ export default async function TransactionDetailPage({
       timeline={timeline}
       chat={chat}
       agreementFields={agreementFields}
+      adminUserId={adminUserId}
     />
   )
 }
