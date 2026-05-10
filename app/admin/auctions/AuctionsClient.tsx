@@ -1,6 +1,7 @@
 ﻿'use client'
-import { ArrowRight} from 'lucide-react'
-import { useState, useEffect, useCallback } from 'react'
+import {ArrowRight} from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, startTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Search,
@@ -101,11 +102,13 @@ function transformAuction(auction: Record<string, unknown>): Auction {
 
 export default function AuctionsClient({ initialAuctions, stats, initialBids }: AuctionsClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [auctions, setAuctions] = useState(initialAuctions)
   const [bids, setBids] = useState(initialBids)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'ended'>('all')
   const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null)
+  const handledAuctionIdRef = useRef<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [isDeleteEnabled, setIsDeleteEnabled] = useState(false)
@@ -125,6 +128,20 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [targetAuctionForDelete, setTargetAuctionForDelete] = useState<Auction | null>(null)
+
+  // Auto-open auction from query params (e.g., ?viewAuction=auctionId)
+  useEffect(() => {
+    const auctionIdToView = searchParams.get('viewAuction')
+    if (auctionIdToView && auctionIdToView !== handledAuctionIdRef.current && auctions.length > 0) {
+      const auction = auctions.find(a => a.id === auctionIdToView)
+      if (auction) {
+        handledAuctionIdRef.current = auctionIdToView
+        startTransition(() => {
+          setSelectedAuction(auction)
+        })
+      }
+    }
+  }, [searchParams, auctions])
 
   // Real-time countdown timer
   const [, setTick] = useState(0)
@@ -1496,60 +1513,44 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                       </div>
 
-                                                                    </div>
+                  </div>
 
-                                                                  </div>
+              </div>
 
-                                                    
+                  
 
-                                                )
+              )
 
-                                              })
+            })
 
-                                            )}
+          )}
 
-                                          </div>
+        </div>
 
                                   
 
   
 
         {/* Auction Detail Modal */}
-
         {selectedAuction && (
-
           <AuctionDetailModal
-
             auction={selectedAuction}
-
             bids={getAuctionBids(selectedAuction.id)}
-
             onClose={() => setSelectedAuction(null)}
-
             getVehicleName={getVehicleName}
-
             getPrimaryPhoto={getPrimaryPhoto}
-
             getTimeRemaining={getTimeRemaining}
-
             getInitials={getInitials}
-
           />
-
         )}
 
   
 
          {/* Delete Confirmation Modal */}
-
         {modalMode === 'delete' && (
-
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-
             <div className="bg-white rounded-2xl max-w-md w-full p-6">
-
               <div className="flex items-center gap-4 mb-4">
-
                 <div className="p-3 bg-red-100 rounded-full">
 
                   <AlertTriangle className="w-6 h-6 text-red-600" />
@@ -1651,7 +1652,6 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
             </div>
 
           </div>
-
         )}
 
       </>
