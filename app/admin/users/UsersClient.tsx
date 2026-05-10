@@ -487,11 +487,12 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
         ) : (
           filteredUsers.map((user) => (
             <div
+              onClick={() => router.push(`/admin/users/${user.id}`)}
               key={user.id}
-              className={`group relative bg-white rounded-xl border transition-all ${
+              className={`group relative bg-white rounded-xl border transition-all duration-200 cursor-pointer ${
                 selectedIds.has(user.id) 
-                  ? 'border-purple-500 shadow-purple-100 ring-1 ring-purple-500' 
-                  : 'border-gray-200 hover:shadow-md'
+                  ? 'border-purple-500 shadow-purple-100 ring-1 ring-purple-500 scale-105' 
+                  : 'border-gray-200 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100/50 hover:-translate-y-1'
               } p-4`}
             >
               {/* Selection Checkbox */}
