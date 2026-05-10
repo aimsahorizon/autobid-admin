@@ -1,5 +1,5 @@
 ﻿'use client'
-
+import { ArrowRight} from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -22,8 +22,10 @@ import {
   CheckSquare,
   Trash2,
   AlertTriangle,
-  Shield
+  Shield,
+  Link as LinkIcon
 } from 'lucide-react'
+import Link from 'next/link'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { bulkDeleteAuctions, deleteAllAuctions } from './actions'
 import { useRouter } from 'next/navigation'
@@ -2326,28 +2328,29 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
 
                    {/* Photo Grid (Categorized) */}
 
-  
 
-                   <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <Link
+                      key={auction.id as string}
+                      //  key={listing.id as string}
+                      href={`/admin/listings/${auction.id}`}
+                      className="block bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-purple-100 rounded-lg transition-colors">
+                              <Eye className="w-5 h-5 text-purple-700" />
 
-  
-
+                            </div>
+                            Vehicle Details
+                          </div>
+                          <ArrowRight className="w-6 h-6 text-purple-700 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                  </Link>
+                   {/* <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                       <h3 className="font-semibold mb-4 text-gray-900 flex items-center gap-2">
-
-  
-
                          <Eye className="w-5 h-5 text-gray-400" />
-
-  
-
                          Vehicle Photos
-
-  
-
                       </h3>
-
-  
-
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                          {photos.length > 0 ? (
                            categories.filter(cat => photosByCategory[cat.key]?.length > 0).map((cat) => (
@@ -2374,16 +2377,10 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                             </div>
                          )}
                       </div>
+                   </div> */}
 
-  
 
-                   </div>
-
-  
-
-  
-
-  
+          
 
                    {/* Vehicle Details */}
 
