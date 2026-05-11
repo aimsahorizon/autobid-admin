@@ -487,7 +487,7 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
         ) : (
           filteredUsers.map((user) => (
             <div
-              onClick={() => router.push(`/admin/users/${user.id}`)}
+              onClick={() => openViewModal(user)}
               key={user.id}
               className={`group relative bg-white rounded-xl border transition-all duration-200 cursor-pointer ${
                 selectedIds.has(user.id) 
@@ -577,7 +577,10 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                 <StatusBadge status={user.user_roles?.display_name || 'Buyer'} variant="purple" />
                 <div className="flex gap-1">
                   <button
-                    onClick={() => openEditModal(user)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEditModal(user)
+                    }}
                     className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                     title="Edit User"
                   >
@@ -585,7 +588,10 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                   </button>
                   {isDeleteEnabled && (
                     <button
-                      onClick={() => openDeleteModal(user, 'single')}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openDeleteModal(user, 'single')
+                      }}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors animate-in fade-in"
                       title="Delete User"
                     >
@@ -705,6 +711,12 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                     {new Date(selectedUser.created_at).toLocaleDateString()}
                   </p>
                 </div>
+                <div
+                  onClick={() => selectedUser && router.push(`/admin/users/${selectedUser.id}`)}
+                  className="flex justify-center items-center text-white bg-purple-600 rounded-lg px-4 py-2 hover:bg-purple-700 transition-colors font-medium"
+                >
+                  View User Profile
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -719,10 +731,13 @@ export default function UsersClient({ initialUsers, roles }: UsersClientProps) {
                     closeModal()
                     openEditModal(selectedUser)
                   }}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                  className="flex-1 px-4 py-2 border-2 border-purple-600  text-purple-600 rounded-lg hover:bg-purple-100 transition-colors font-medium"
                 >
                   Edit
                 </button>
+        
+                  {/* onClick={() => router.push(`/admin/users/${user.id}`)} */}
+
                 <button
                   onClick={() => handleToggleStatus(selectedUser, 'is_active')}
                   className={`flex-1 px-4 py-2 rounded-lg transition-colors font-medium ${
