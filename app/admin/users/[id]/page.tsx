@@ -154,7 +154,7 @@ export default async function UserDetailPage({ params }: PageProps) {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <InfoField icon={<Mail className="w-4 h-4" />} label="Email" value={user.email} />
+              <InfoField icon={<Mail className="w-4 h-4" />} label="Email" value={user.email} valueClassName="break-all" />
               <InfoField icon={<User className="w-4 h-4" />} label="First Name" value={user.first_name || '—'} />
               <InfoField icon={<User className="w-4 h-4" />} label="Last Name" value={user.last_name || '—'} />
               {user.middle_name && (
@@ -253,14 +253,24 @@ export default async function UserDetailPage({ params }: PageProps) {
   )
 }
 
-function InfoField({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoField({
+  icon,
+  label,
+  value,
+  valueClassName = '',
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  valueClassName?: string
+}) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-1.5 text-xs text-gray-500 uppercase tracking-wide mb-1">
         {icon}
         {label}
       </div>
-      <p className="text-sm text-gray-900">{value}</p>
+      <p className={`text-sm text-gray-900 ${valueClassName}`}>{value}</p>
     </div>
   )
 }
