@@ -1,7 +1,13 @@
-﻿'use client'
-
-import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+﻿"use client";
+import { ArrowRight } from "lucide-react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   Search,
   Gavel,
@@ -22,60 +28,84 @@ import {
   CheckSquare,
   Trash2,
   AlertTriangle,
-  Shield
-} from 'lucide-react'
-import StatusBadge from '@/components/ui/StatusBadge'
-import { bulkDeleteAuctions, deleteAllAuctions } from './actions'
-import { useRouter } from 'next/navigation'
+  Shield,
+  Link as LinkIcon,
+} from "lucide-react";
+import Image from 'next/image'
+import Link from "next/link";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { bulkDeleteAuctions, deleteAllAuctions } from "./actions";
+import { useRouter } from "next/navigation";
 
 interface Bid {
-  id: string
-  auction_id: string
-  bidder_id: string
-  bid_amount: number
-  is_auto_bid: boolean
-  created_at: string
-  bid_statuses: { status_name: string; display_name: string } | null
-  users: { id: string; full_name: string | null; email: string; profile_image_url: string | null } | null
+  id: string;
+  auction_id: string;
+  bidder_id: string;
+  bid_amount: number;
+  is_auto_bid: boolean;
+  created_at: string;
+  bid_statuses: { status_name: string; display_name: string } | null;
+  users: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    profile_photo_url: string | null;
+    profile_image_url: string | null;
+  } | null;
 }
 
 interface Auction {
-  id: string
-  title: string
-  description: string | null
-  starting_price: number
-  reserve_price: number | null
-  current_price: number
-  bid_increment: number
-  deposit_amount: number
-  total_bids: number
-  view_count: number
-  is_featured: boolean
-  is_active: boolean
-  start_time: string | null
-  end_time: string | null
-  created_at: string
-  auction_statuses: { id: string; status_name: string; display_name: string } | null
-  auction_categories: { category_name: string; display_name: string } | null
+  id: string;
+  title: string;
+  description: string | null;
+  starting_price: number;
+  reserve_price: number | null;
+  current_price: number;
+  bid_increment: number;
+  deposit_amount: number;
+  total_bids: number;
+  view_count: number;
+  is_featured: boolean;
+  is_active: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  created_at: string;
+  auction_statuses: {
+    id: string;
+    status_name: string;
+    display_name: string;
+  } | null;
+  auction_categories: { category_name: string; display_name: string } | null;
   auction_vehicles: {
-    brand: string | null
-    model: string | null
-    variant: string | null
-    year: number | null
-    mileage: number | null
-    condition: string | null
-    exterior_color: string | null
-    transmission: string | null
-    fuel_type: string | null
-  } | null
-  auction_photos: Array<{ id: string; photo_url: string; is_primary: boolean; category: string }>
-  users: { id: string; full_name: string | null; email: string; profile_image_url: string | null } | null
+    brand: string | null;
+    model: string | null;
+    variant: string | null;
+    year: number | null;
+    mileage: number | null;
+    condition: string | null;
+    exterior_color: string | null;
+    transmission: string | null;
+    fuel_type: string | null;
+  } | null;
+  auction_photos: Array<{
+    id: string;
+    photo_url: string;
+    is_primary: boolean;
+    category: string;
+  }>;
+  users: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    profile_photo_url: string | null;
+    profile_image_url: string | null;
+  } | null;
 }
 
 interface AuctionsClientProps {
-  initialAuctions: Auction[]
-  stats: { totalActive: number; endingSoon: number; totalBids: number }
-  initialBids: Bid[]
+  initialAuctions: Auction[];
+  stats: { totalActive: number; endingSoon: number; totalBids: number };
+  initialBids: Bid[];
 }
 
 // Helper to transform Supabase relation arrays to single objects
@@ -94,56 +124,87 @@ function transformAuction(auction: Record<string, unknown>): Auction {
     users: Array.isArray(auction.users)
       ? auction.users[0] || null
       : auction.users,
-  } as Auction
+  } as Auction;
 }
 
-export default function AuctionsClient({ initialAuctions, stats, initialBids }: AuctionsClientProps) {
-  const router = useRouter()
-  const [auctions, setAuctions] = useState(initialAuctions)
-  const [bids, setBids] = useState(initialBids)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'live' | 'scheduled' | 'ended'>('all')
-  const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [lastUpdate, setLastUpdate] = useState(new Date())
-  const [isDeleteEnabled, setIsDeleteEnabled] = useState(false)
-  const [isSelectionEnabled, setIsSelectionEnabled] = useState(false)
-  
+export default function AuctionsClient({
+  initialAuctions,
+  stats,
+  initialBids,
+}: AuctionsClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [auctions, setAuctions] = useState(initialAuctions);
+  const [bids, setBids] = useState(initialBids);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "live" | "scheduled" | "ended">(
+    "all",
+  );
+  const [selectedAuction, setSelectedAuction] = useState<Auction | null>(null);
+  const handledAuctionIdRef = useRef<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [isDeleteEnabled, setIsDeleteEnabled] = useState(false);
+  const [isSelectionEnabled, setIsSelectionEnabled] = useState(false);
+
   // Bulk Action State
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleSelectionMode = () => {
     if (isSelectionEnabled) {
-      setSelectedIds(new Set())
+      setSelectedIds(new Set());
     }
-    setIsSelectionEnabled(!isSelectionEnabled)
-  }
-  const [modalMode, setModalMode] = useState<'delete' | null>(null)
-  const [actionScope, setActionScope] = useState<'single' | 'selected' | 'all'>('single')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [targetAuctionForDelete, setTargetAuctionForDelete] = useState<Auction | null>(null)
+    setIsSelectionEnabled(!isSelectionEnabled);
+  };
+  const [modalMode, setModalMode] = useState<"delete" | null>(null);
+  const [actionScope, setActionScope] = useState<"single" | "selected" | "all">(
+    "single",
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [targetAuctionForDelete, setTargetAuctionForDelete] =
+    useState<Auction | null>(null);
+
+  // Auto-open auction from query params (e.g., ?viewAuction=auctionId)
+  useEffect(() => {
+    const auctionIdToView = searchParams.get("viewAuction");
+    if (!auctionIdToView || auctionIdToView === handledAuctionIdRef.current) return;
+
+    // Try to find the auction from current state first, then fallback to initial props
+    const auction = auctions.find((a) => a.id === auctionIdToView) ||
+      initialAuctions.find((a) => a.id === auctionIdToView);
+
+    if (auction) {
+      handledAuctionIdRef.current = auctionIdToView;
+      // Schedule opening and URL replace asynchronously so rendering is immediate
+      setTimeout(() => {
+        setSelectedAuction(auction);
+        router.replace('/admin/auctions');
+      }, 0);
+    }
+  }, [searchParams, auctions, initialAuctions, router]);
 
   // Real-time countdown timer
-  const [, setTick] = useState(0)
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 1000)
-    return () => clearInterval(interval)
-  }, [])
+    const interval = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Real-time subscription for bids
   useEffect(() => {
-    const supabase = createClient()
+    const supabase = createClient();
 
     const channel = supabase
-      .channel('bids-realtime')
+      .channel("bids-realtime")
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'bids' },
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bids" },
         async (payload) => {
           const { data: newBid } = await supabase
-            .from('bids')
-            .select(`
+            .from("bids")
+            .select(
+              `
               id,
               auction_id,
               bidder_id,
@@ -151,42 +212,54 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
               is_auto_bid,
               created_at,
               bid_statuses (status_name, display_name),
-              users (id, full_name, email, profile_image_url)
-            `)
-            .eq('id', payload.new.id)
-            .single()
+              users (id, full_name, email, profile_photo_url, profile_image_url)
+            `,
+            )
+            .eq("id", payload.new.id)
+            .single();
 
           if (newBid) {
             const transformedBid: Bid = {
               ...newBid,
-              bid_statuses: Array.isArray(newBid.bid_statuses) ? newBid.bid_statuses[0] || null : newBid.bid_statuses,
-              users: Array.isArray(newBid.users) ? newBid.users[0] || null : newBid.users,
-            }
-            setBids(prev => [transformedBid, ...prev])
-            setLastUpdate(new Date())
+              bid_statuses: Array.isArray(newBid.bid_statuses)
+                ? newBid.bid_statuses[0] || null
+                : newBid.bid_statuses,
+              users: Array.isArray(newBid.users)
+                ? newBid.users[0] || null
+                : newBid.users,
+            };
+            setBids((prev) => [transformedBid, ...prev]);
+            setLastUpdate(new Date());
 
-            setAuctions(prev => prev.map(a =>
-              a.id === newBid.auction_id
-                ? { ...a, current_price: newBid.bid_amount, total_bids: a.total_bids + 1 }
-                : a
-            ))
+            setAuctions((prev) =>
+              prev.map((a) =>
+                a.id === newBid.auction_id
+                  ? {
+                      ...a,
+                      current_price: newBid.bid_amount,
+                      total_bids: a.total_bids + 1,
+                    }
+                  : a,
+              ),
+            );
           }
-        }
+        },
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const refreshData = useCallback(async () => {
-    setIsRefreshing(true)
-    const supabase = createClient()
+    setIsRefreshing(true);
+    const supabase = createClient();
 
     const { data: freshAuctions } = await supabase
-      .from('auctions')
-      .select(`
+      .from("auctions")
+      .select(
+        `
         id,
         title,
         description,
@@ -206,2148 +279,1010 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
         auction_categories (category_name, display_name),
         auction_vehicles (brand, model, variant, year, mileage, condition, exterior_color, transmission, fuel_type),
         auction_photos (id, photo_url, is_primary, category),
-        users!auctions_seller_id_fkey (id, full_name, email, profile_image_url)
-      `)
-      .order('start_time', { ascending: false })
+        users!auctions_seller_id_fkey (id, full_name, email, profile_photo_url, profile_image_url)
+      `,
+      )
+      .order("start_time", { ascending: false });
 
     if (freshAuctions) {
-      setAuctions(freshAuctions.map(transformAuction))
-      setLastUpdate(new Date())
+      setAuctions(freshAuctions.map(transformAuction));
+      setLastUpdate(new Date());
     }
 
-    setIsRefreshing(false)
-  }, [])
+    setIsRefreshing(false);
+  }, []);
 
   const filteredAuctions = auctions.filter((auction) => {
-    const vehicle = auction.auction_vehicles
-    const searchLower = search.toLowerCase()
+    const vehicle = auction.auction_vehicles;
+    const searchLower = search.toLowerCase();
     const matchesSearch =
       auction.title?.toLowerCase().includes(searchLower) ||
       vehicle?.brand?.toLowerCase().includes(searchLower) ||
       vehicle?.model?.toLowerCase().includes(searchLower) ||
-      auction.users?.full_name?.toLowerCase().includes(searchLower)
+      auction.users?.full_name?.toLowerCase().includes(searchLower);
 
-    if (filter === 'all') return matchesSearch
-    return matchesSearch && auction.auction_statuses?.status_name === filter
-  })
+    if (filter === "all") return matchesSearch;
+    return matchesSearch && auction.auction_statuses?.status_name === filter;
+  });
 
   // Selection Logic
   const toggleSelectAuction = (id: string) => {
-    const newSelected = new Set(selectedIds)
+    const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
-      newSelected.delete(id)
+      newSelected.delete(id);
     } else {
-      newSelected.add(id)
+      newSelected.add(id);
     }
-    setSelectedIds(newSelected)
-  }
+    setSelectedIds(newSelected);
+  };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0) {
-      setSelectedIds(new Set())
+    if (
+      selectedIds.size === filteredAuctions.length &&
+      filteredAuctions.length > 0
+    ) {
+      setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredAuctions.map(a => a.id)))
+      setSelectedIds(new Set(filteredAuctions.map((a) => a.id)));
     }
-  }
+  };
 
   const handleBulkActivate = async (active: boolean) => {
-    if (selectedIds.size === 0) return
-    setLoading(true)
-    const supabase = createClient()
-    
+    if (selectedIds.size === 0) return;
+    setLoading(true);
+    const supabase = createClient();
+
     const { error } = await supabase
-      .from('auctions')
+      .from("auctions")
       .update({ is_active: active })
-      .in('id', Array.from(selectedIds))
+      .in("id", Array.from(selectedIds));
 
     if (!error) {
-       await refreshData()
-       setSelectedIds(new Set())
+      await refreshData();
+      setSelectedIds(new Set());
     }
-    setLoading(false)
-  }
-  
-  const handleToggleSingleActive = async (id: string, currentStatus: boolean) => {
-     const supabase = createClient()
-     await supabase.from('auctions').update({ is_active: !currentStatus }).eq('id', id)
-     setAuctions(prev => prev.map(a => a.id === id ? { ...a, is_active: !currentStatus } : a))
-  }
+    setLoading(false);
+  };
 
-  const openDeleteModal = (auction: Auction | null = null, scope: 'single' | 'selected' | 'all' = 'single') => {
-    if (auction) setTargetAuctionForDelete(auction)
-    setActionScope(scope)
-    setModalMode('delete')
-    setError(null)
-  }
+  const handleToggleSingleActive = async (
+    id: string,
+    currentStatus: boolean,
+  ) => {
+    const supabase = createClient();
+    await supabase
+      .from("auctions")
+      .update({ is_active: !currentStatus })
+      .eq("id", id);
+    setAuctions((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, is_active: !currentStatus } : a)),
+    );
+  };
+
+  const openDeleteModal = (
+    auction: Auction | null = null,
+    scope: "single" | "selected" | "all" = "single",
+  ) => {
+    if (auction) setTargetAuctionForDelete(auction);
+    setActionScope(scope);
+    setModalMode("delete");
+    setError(null);
+  };
 
   const closeModal = () => {
-    setModalMode(null)
-    setTargetAuctionForDelete(null)
-    setError(null)
-  }
+    setModalMode(null);
+    setTargetAuctionForDelete(null);
+    setError(null);
+  };
 
   const handleExecuteDelete = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     let result;
 
     try {
-      if (actionScope === 'single' && targetAuctionForDelete) {
-        result = await bulkDeleteAuctions([targetAuctionForDelete.id])
-      } else if (actionScope === 'selected') {
-        result = await bulkDeleteAuctions(Array.from(selectedIds))
-      } else if (actionScope === 'all') {
-        result = await deleteAllAuctions()
+      if (actionScope === "single" && targetAuctionForDelete) {
+        result = await bulkDeleteAuctions([targetAuctionForDelete.id]);
+      } else if (actionScope === "selected") {
+        result = await bulkDeleteAuctions(Array.from(selectedIds));
+      } else if (actionScope === "all") {
+        result = await deleteAllAuctions();
       }
 
       if (result?.success) {
         // Optimistic update
-        if (actionScope === 'single' && targetAuctionForDelete) {
-          setAuctions(prev => prev.filter(a => a.id !== targetAuctionForDelete.id))
+        if (actionScope === "single" && targetAuctionForDelete) {
+          setAuctions((prev) =>
+            prev.filter((a) => a.id !== targetAuctionForDelete.id),
+          );
         } else {
-           await refreshData()
+          await refreshData();
         }
-        
-        setSelectedIds(new Set())
-        closeModal()
-        router.refresh()
+
+        setSelectedIds(new Set());
+        closeModal();
+        router.refresh();
       } else {
-        setError(result?.error || 'Failed to delete')
+        setError(result?.error || "Failed to delete");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : "An error occurred");
     }
 
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
   const getVehicleName = (auction: Auction) => {
-    const v = auction.auction_vehicles
+    const v = auction.auction_vehicles;
     if (v?.year && v?.brand && v?.model) {
-      return `${v.year} ${v.brand} ${v.model}${v.variant ? ` ${v.variant}` : ''}`
+      return `${v.year} ${v.brand} ${v.model}${v.variant ? ` ${v.variant}` : ""}`;
     }
-    return auction.title || 'Untitled'
-  }
+    return auction.title || "Untitled";
+  };
 
-  const getPrimaryPhoto = (photos: Array<{ photo_url: string; is_primary: boolean }>) => {
-    const primary = photos?.find((p) => p.is_primary)
-    return primary?.photo_url || photos?.[0]?.photo_url
-  }
+  const getPrimaryPhoto = (
+    photos: Array<{ photo_url: string; is_primary: boolean }>,
+  ) => {
+    const primary = photos?.find((p) => p.is_primary);
+    return primary?.photo_url || photos?.[0]?.photo_url;
+  };
 
-    const getTimeRemaining = (endTime: string | null) => {
+  const getTimeRemaining = (endTime: string | null) => {
+    if (!endTime) return { text: "-", urgent: false, ended: false };
 
-      if (!endTime) return { text: '-', urgent: false, ended: false }
+    const end = new Date(endTime);
 
-      const end = new Date(endTime)
+    const now = new Date();
 
-      const now = new Date()
+    const diff = end.getTime() - now.getTime();
 
-      const diff = end.getTime() - now.getTime()
+    if (diff <= 0) return { text: "Ended", urgent: false, ended: true };
 
-  
+    const hours = Math.floor(diff / (1000 * 60 * 60));
 
-      if (diff <= 0) return { text: 'Ended', urgent: false, ended: true }
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-  
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      const hours = Math.floor(diff / (1000 * 60 * 60))
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
 
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-  
-
-      if (hours > 24) {
-
-        const days = Math.floor(hours / 24)
-
-        return { text: `${days}d ${hours % 24}h`, urgent: false, ended: false }
-
-      }
-
-      if (hours > 0) {
-
-        return { text: `${hours}h ${minutes}m`, urgent: hours < 1, ended: false }
-
-      }
-
-      return { text: `${minutes}m ${seconds}s`, urgent: true, ended: false }
-
+      return { text: `${days}d ${hours % 24}h`, urgent: false, ended: false };
     }
 
-  
-
-    const getAuctionBids = (auctionId: string) => {
-
-      return bids.filter(b => b.auction_id === auctionId).sort((a, b) => b.bid_amount - a.bid_amount)
-
+    if (hours > 0) {
+      return { text: `${hours}h ${minutes}m`, urgent: hours < 1, ended: false };
     }
 
-  
+    return { text: `${minutes}m ${seconds}s`, urgent: true, ended: false };
+  };
 
-    const getHighestBidder = (auctionId: string) => {
+  const getAuctionBids = (auctionId: string) => {
+    return bids
+      .filter((b) => b.auction_id === auctionId)
+      .sort((a, b) => b.bid_amount - a.bid_amount);
+  };
 
-      const auctionBids = getAuctionBids(auctionId)
+  const getHighestBidder = (auctionId: string) => {
+    const auctionBids = getAuctionBids(auctionId);
 
-      return auctionBids[0] || null
+    return auctionBids[0] || null;
+  };
 
-    }
+  const closeAuctionDetail = () => {
+    setSelectedAuction(null);
+    router.replace('/admin/auctions');
+  };
 
-  
+  const getInitials = (name: string | null, email: string) => {
+    if (name)
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
 
-    const getInitials = (name: string | null, email: string) => {
+    return email[0].toUpperCase();
+  };
 
-      if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  return (
+    <>
+      {/* Stats */}
 
-      return email[0].toUpperCase()
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm">Live Auctions</p>
 
-    }
-
-  
-
-    return (
-
-      <>
-
-        {/* Stats */}
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-green-100 text-sm">Live Auctions</p>
-
-                <p className="text-3xl font-bold mt-1">{stats.totalActive}</p>
-
-              </div>
-
-              <div className="p-3 bg-white/20 rounded-xl">
-
-                <Activity className="w-6 h-6" />
-
-              </div>
-
+              <p className="text-3xl font-bold mt-1">{stats.totalActive}</p>
             </div>
 
-          </div>
-
-          <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-orange-100 text-sm">Ending Soon</p>
-
-                <p className="text-3xl font-bold mt-1">{stats.endingSoon}</p>
-
-              </div>
-
-              <div className="p-3 bg-white/20 rounded-xl">
-
-                <Timer className="w-6 h-6" />
-
-              </div>
-
+            <div className="p-3 bg-white/20 rounded-xl">
+              <Activity className="w-6 h-6" />
             </div>
-
           </div>
-
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-purple-100 text-sm">Total Bids</p>
-
-                <p className="text-3xl font-bold mt-1">{stats.totalBids.toLocaleString()}</p>
-
-              </div>
-
-              <div className="p-3 bg-white/20 rounded-xl">
-
-                <Gavel className="w-6 h-6" />
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-
-                <p className="text-blue-100 text-sm">Last Update</p>
-
-                <p className="text-lg font-bold mt-1">{lastUpdate.toLocaleTimeString()}</p>
-
-              </div>
-
-              <button
-
-                onClick={refreshData}
-
-                disabled={isRefreshing}
-
-                className="p-3 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
-
-              >
-
-                <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
-
-              </button>
-
-            </div>
-
-          </div>
-
         </div>
 
-  
-
-                {/* Filters & Actions */}
-
-  
-
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-
-  
-
-                  <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
-
-  
-
-                    <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full lg:w-auto">
-
-  
-
-                      <div className="relative flex-1 min-w-[240px]">
-
-  
-
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-
-  
-
-                        <input
-
-  
-
-                          type="text"
-
-  
-
-                          placeholder="Search by vehicle, brand, seller..."
-
-  
-
-                          value={search}
-
-  
-
-                          onChange={(e) => setSearch(e.target.value)}
-
-  
-
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-
-  
-
-                        />
-
-  
-
-                      </div>
-
-  
-
-                      <div className="flex gap-2 flex-wrap items-center">
-
-  
-
-                        {(['all', 'live', 'scheduled', 'ended'] as const).map((status) => (
-
-  
-
-                          <button
-
-  
-
-                            key={status}
-
-  
-
-                            onClick={() => setFilter(status)}
-
-  
-
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-
-  
-
-                              filter === status
-
-  
-
-                                ? 'bg-purple-600 text-white'
-
-  
-
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-
-  
-
-                            }`}
-
-  
-
-                          >
-
-  
-
-                            {status === 'live' && <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />}
-
-  
-
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-
-  
-
-                          </button>
-
-  
-
-                        ))}
-
-  
-
-                      </div>
-
-  
-
-                    </div>
-
-  
-
-        
-
-  
-
-                    <div className="flex gap-2 items-center ml-auto shrink-0">
-
-  
-
-                      <button
-
-  
-
-                        onClick={toggleSelectionMode}
-
-  
-
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-
-  
-
-                          isSelectionEnabled 
-
-  
-
-                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-
-  
-
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-
-  
-
-                        }`}
-
-  
-
-                        title={isSelectionEnabled ? 'Disable Selection' : 'Enable Selection'}
-
-  
-
-                      >
-
-  
-
-                        <CheckSquare className="w-4 h-4" />
-
-  
-
-                        {isSelectionEnabled ? 'Enabled' : 'Select'}
-
-  
-
-                      </button>
-
-  
-
-                      <button
-
-  
-
-                        onClick={() => setIsDeleteEnabled(!isDeleteEnabled)}
-
-  
-
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-
-  
-
-                          isDeleteEnabled 
-
-  
-
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-
-  
-
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-
-  
-
-                        }`}
-
-  
-
-                        title={isDeleteEnabled ? 'Disable Deletion' : 'Enable Deletion'}
-
-  
-
-                      >
-
-  
-
-                        <Shield className="w-4 h-4" />
-
-  
-
-                        {isDeleteEnabled ? 'Enabled' : 'Delete'}
-
-  
-
-                      </button>
-
-  
-
-                       {isDeleteEnabled && (
-
-  
-
-                         <button
-
-  
-
-                          onClick={() => openDeleteModal(null, 'all')}
-
-  
-
-                          className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors animate-in fade-in"
-
-  
-
-                          title="Delete All Auctions"
-
-  
-
-                        >
-
-  
-
-                          <Trash2 className="w-4 h-4" />
-
-  
-
-                          Delete All
-
-  
-
-                        </button>
-
-  
-
-                       )}
-
-  
-
-                    </div>
-
-  
-
-                  </div>
-
-  
-
-        
-
-                  
-
-                                                    {/* Bulk Selection Bar */}
-
-                  
-
-                                                    {isSelectionEnabled && selectedIds.size > 0 && (
-
-                  
-
-                                                      <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
-
-                  
-
-                                                        <div className="flex items-center gap-2 text-purple-900 font-medium">
-
-                  
-
-                                                          <CheckSquare className="w-5 h-5 text-purple-600" />
-
-                  
-
-                                                          {selectedIds.size} auction{selectedIds.size > 1 ? 's' : ''} selected
-
-                  
-
-                                                        </div>
-
-                  
-
-                                                        <div className="flex gap-2">
-                                                           {/* Bulk Activate/Deactivate */}
-                                                           <button
-                                                            onClick={() => handleBulkActivate(true)}
-                                                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
-                                                           >
-                                                             Activate
-                                                           </button>
-                                                           <button
-                                                            onClick={() => handleBulkActivate(false)}
-                                                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
-                                                           >
-                                                             Deactivate
-                                                           </button>
-
-                  
-
-                                                           <button
-
-                  
-
-                                                            onClick={() => setSelectedIds(new Set())}
-
-                  
-
-                                                            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
-
-                  
-
-                                                          >
-
-                  
-
-                                                            Cancel
-
-                  
-
-                                                          </button>
-
-                  
-
-                                                          {isDeleteEnabled && (
-
-                  
-
-                                                            <button
-
-                  
-
-                                                              onClick={() => openDeleteModal(null, 'selected')}
-
-                  
-
-                                                              className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm animate-in fade-in"
-
-                  
-
-                                                            >
-
-                  
-
-                                                              <Trash2 className="w-4 h-4" />
-
-                  
-
-                                                              Delete Selected
-
-                  
-
-                                                            </button>
-
-                  
-
-                                                          )}
-
-                  
-
-                                                        </div>
-
-                  
-
-                                                      </div>
-
-                  
-
-                                                    )}
-
-                  
-
-                          
-
-                  
-
-  
-
-                      {/* Select All Checkbox */}
-
-                  
-
-                          
-
-                  
-
-  
-
-                     {isSelectionEnabled && (
-
-                  
-
-                          
-
-                  
-
-  
-
-                       <div className="mt-4 flex items-center gap-2 animate-in fade-in">
-
-                  
-
-                          
-
-                  
-
-  
-
-                         <button 
-
-                  
-
-                          
-
-                  
-
-  
-
-                           onClick={toggleSelectAll}
-
-                  
-
-                          
-
-                  
-
-  
-
-                           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
-
-                  
-
-                          
-
-                  
-
-  
-
-                         >
-
-                  
-
-                          
-
-                  
-
-  
-
-                           {selectedIds.size === filteredAuctions.length && filteredAuctions.length > 0 ? (
-
-                  
-
-                          
-
-                  
-
-  
-
-                             <CheckSquare className="w-4 h-4 text-purple-600" />
-
-                  
-
-                          
-
-                  
-
-  
-
-                           ) : (
-
-                  
-
-                          
-
-                  
-
-  
-
-                             <Square className="w-4 h-4" />
-
-                  
-
-                          
-
-                  
-
-  
-
-                           )}
-
-                  
-
-                          
-
-                  
-
-  
-
-                           Select All {filteredAuctions.length > 0 && `(${filteredAuctions.length})`}
-
-                  
-
-                          
-
-                  
-
-  
-
-                         </button>
-
-                  
-
-                          
-
-                  
-
-  
-
-                       </div>
-
-                  
-
-                          
-
-                  
-
-  
-
-                     )}
-
-                  
-
-                          
-
-                  
-
-  
-
-                   </div>
-
-                  
-
-                          
-
-                  
-
-  
-
-           
-
-  
-
-        {/* Auction Cards Grid */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-
-          {filteredAuctions.length === 0 ? (
-
-            <div className="col-span-full bg-white rounded-xl border border-gray-200 p-12 text-center">
-
-              <Car className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-
-              <p className="text-gray-500 text-lg">No auctions found</p>
-
+        <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm">Ending Soon</p>
+
+              <p className="text-3xl font-bold mt-1">{stats.endingSoon}</p>
             </div>
 
-          ) : (
-
-            filteredAuctions.map((auction) => {
-
-              const timeInfo = getTimeRemaining(auction.end_time)
-
-              const highestBidder = getHighestBidder(auction.id)
-
-              const auctionBids = getAuctionBids(auction.id)
-
-              const isLive = auction.auction_statuses?.status_name === 'live'
-
-  
-
-              return (
-
-                <div
-
-                  key={auction.id}
-
-                  className={`group relative bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-xl ${
-                    !auction.is_active ? 'opacity-75 bg-gray-50' : ''
-                  } ${
-                    isLive ? 'border-green-400' : 'border-gray-200'
-
-                  } ${timeInfo.urgent && isLive ? 'ring-2 ring-red-400 ring-opacity-50' : ''} ${
-
-                      selectedIds.has(auction.id) ? 'ring-2 ring-purple-500 border-purple-500' : ''
-
-                  }`}
-
-                >
-
-                                    {/* Card Actions */}
-
-                                    <div className="absolute top-3 right-3 z-20 flex gap-2">
-
-                                      {isSelectionEnabled && (
-
-                                        <button
-
-                                          onClick={(e) => {
-
-                                            e.stopPropagation()
-
-                                            toggleSelectAuction(auction.id)
-
-                                          }}
-
-                                          className="p-1 bg-white/80 rounded-full hover:bg-white transition-colors shadow-sm animate-in fade-in"
-
-                                        >
-
-                                          {selectedIds.has(auction.id) ? (
-
-                                            <CheckSquare className="w-6 h-6 text-purple-600" />
-
-                                          ) : (
-
-                                            <Square className="w-6 h-6 text-gray-500 hover:text-purple-600" />
-
-                                          )}
-
-                                        </button>
-
-                                      )}
-                                      
-                                      <button
-                                          onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleToggleSingleActive(auction.id, auction.is_active)
-                                          }}
-                                          className={`p-1 bg-white/80 rounded-full hover:bg-gray-100 transition-colors shadow-sm animate-in fade-in ${!auction.is_active ? 'text-red-500' : 'text-green-500'}`}
-                                          title={auction.is_active ? 'Deactivate' : 'Activate'}
-                                         >
-                                             <Shield className="w-6 h-6" />
-                                      </button>
-
-                                      
-
-                                      {isDeleteEnabled && (
-
-                                         <button
-
-                                          onClick={(e) => {
-
-                                              e.stopPropagation()
-
-                                              openDeleteModal(auction, 'single')
-
-                                          }}
-
-                                          className="p-1 bg-white/80 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors shadow-sm animate-in fade-in"
-
-                                          title="Delete Auction"
-
-                                         >
-
-                                             <Trash2 className="w-6 h-6" />
-
-                                         </button>
-
-                                      )}
-
-                                    </div>
-
-                  
-
-  
-
-                  {/* Clickable Area for Details */}
-
-                  <div onClick={() => setSelectedAuction(auction)} className="cursor-pointer">
-
-                      {/* Cover Photo */}
-
-                      <div className="relative aspect-[16/9] bg-gray-100">
-
-                        {getPrimaryPhoto(auction.auction_photos) ? (
-
-                          <img
-
-                            src={getPrimaryPhoto(auction.auction_photos)}
-
-                            alt={getVehicleName(auction)}
-
-                            className="w-full h-full object-cover"
-
-                          />
-
-                        ) : (
-
-                          <div className="w-full h-full flex items-center justify-center">
-
-                            <Car className="w-20 h-20 text-gray-300" />
-
-                          </div>
-
-                        )}
-
-  
-
-                        {/* Status Badge Overlay */}
-
-                        <div className="absolute top-3 left-3 z-10 space-y-1">
-
-                          {!auction.is_active && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-medium mr-2">
-                                INACTIVE
-                              </span>
-                          )}
-
-                          {isLive && timeInfo.ended ? (
-
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-medium">
-
-                              ENDED
-
-                            </span>
-
-                          ) : isLive ? (
-
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium">
-
-                              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-
-                              LIVE
-
-                            </span>
-
-                          ) : (
-
-                            <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
-
-                          )}
-
-                        </div>
-
-  
-
-                        {/* Time Remaining Overlay */}
-
-                        {isLive && (
-
-                          <div className={`absolute top-12 right-3 px-3 py-1 rounded-full text-sm font-bold z-10 ${
-
-                            timeInfo.ended 
-
-                              ? 'bg-gray-800 text-white'
-
-                              : timeInfo.urgent 
-
-                                ? 'bg-red-500 text-white animate-pulse' 
-
-                                : 'bg-black/70 text-white'
-
-                          }`}>
-
-                            <Clock className="w-4 h-4 inline mr-1" />
-
-                            {timeInfo.text === 'Ended' ? 'Auction Ended' : timeInfo.text}
-
-                          </div>
-
-                        )}
-
-  
-
-                        {/* Bid Count Overlay */}
-
-                        <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 text-white rounded-full text-sm font-medium z-10">
-
-                          <Gavel className="w-4 h-4 inline mr-1" />
-
-                          {auction.total_bids} bids
-
-                        </div>
-
-  
-
-                        {/* Featured Badge */}
-
-                        {auction.is_featured && (
-
-                          <div className="absolute bottom-3 left-3 px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium z-10">
-
-                            <Zap className="w-4 h-4 inline mr-1" />
-
-                            Featured
-
-                          </div>
-
-                        )}
-
-                      </div>
-
-  
-
-                      {/* Content */}
-
-                      <div className="p-4">
-
-                        <h3 className="font-bold text-gray-900 text-lg truncate">{getVehicleName(auction)}</h3>
-
-                        <p className="text-sm text-gray-500 mt-1">
-
-                          Seller: {auction.users?.full_name || auction.users?.email}
-
-                        </p>
-
-  
-
-                        {/* Price Section */}
-
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-
-                          <div className="flex items-center justify-between">
-
-                            <div>
-
-                              <p className="text-xs text-gray-500 uppercase">Current Bid</p>
-
-                              <p className="text-2xl font-bold text-purple-600">
-
-                                ₱{auction.current_price?.toLocaleString()}
-
-                              </p>
-
-                            </div>
-
-                            <div className="text-right">
-
-                              <p className="text-xs text-gray-500 uppercase">Starting</p>
-
-                              <p className="text-sm text-gray-600">₱{auction.starting_price?.toLocaleString()}</p>
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
-  
-
-                        {/* Highest Bidder */}
-
-                        {highestBidder && (
-
-                          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-
-                            <div className="flex items-center gap-3">
-
-                              <div className="relative">
-
-                                {highestBidder.users?.profile_image_url ? (
-
-                                  <img
-
-                                    src={highestBidder.users.profile_image_url}
-
-                                    alt="Bidder"
-
-                                    className="w-10 h-10 rounded-full object-cover border-2 border-green-400"
-
-                                  />
-
-                                ) : (
-
-                                  <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center border-2 border-green-400">
-
-                                    <span className="text-sm font-bold text-green-700">
-
-                                      {getInitials(highestBidder.users?.full_name || null, highestBidder.users?.email || 'U')}
-
-                                    </span>
-
-                                  </div>
-
-                                )}
-
-                                <Trophy className="absolute -bottom-1 -right-1 w-4 h-4 text-yellow-500" />
-
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-
-                                <p className="text-xs text-green-600 font-medium uppercase">Highest Bidder</p>
-
-                                <p className="font-semibold text-gray-900 truncate">
-
-                                  {highestBidder.users?.full_name || highestBidder.users?.email}
-
-                                </p>
-
-                              </div>
-
-                              <div className="text-right">
-
-                                <p className="font-bold text-green-600">₱{highestBidder.bid_amount.toLocaleString()}</p>
-
-                                {highestBidder.is_auto_bid && (
-
-                                  <span className="text-xs text-gray-500">Auto-bid</span>
-
-                                )}
-
-                              </div>
-
-                            </div>
-
-                          </div>
-
-                        )}
-
-  
-
-                        {/* Stats Row */}
-
-                        <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-
-                          <span className="flex items-center gap-1">
-
-                            <Eye className="w-4 h-4" />
-
-                            {auction.view_count} views
-
-                          </span>
-
-                          <span className="flex items-center gap-1">
-
-                            <Users className="w-4 h-4" />
-
-                            {auctionBids.length} bidders
-
-                          </span>
-
-                          <span className="flex items-center gap-1 text-purple-600">
-
-                            View Details
-
-                            <ChevronRight className="w-4 h-4" />
-
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                                                                    </div>
-
-                                                                  </div>
-
-                                                    
-
-                                                )
-
-                                              })
-
-                                            )}
-
-                                          </div>
-
-                                  
-
-  
-
-        {/* Auction Detail Modal */}
-
-        {selectedAuction && (
-
-          <AuctionDetailModal
-
-            auction={selectedAuction}
-
-            bids={getAuctionBids(selectedAuction.id)}
-
-            onClose={() => setSelectedAuction(null)}
-
-            getVehicleName={getVehicleName}
-
-            getPrimaryPhoto={getPrimaryPhoto}
-
-            getTimeRemaining={getTimeRemaining}
-
-            getInitials={getInitials}
-
-          />
-
-        )}
-
-  
-
-         {/* Delete Confirmation Modal */}
-
-        {modalMode === 'delete' && (
-
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-
-              <div className="flex items-center gap-4 mb-4">
-
-                <div className="p-3 bg-red-100 rounded-full">
-
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-xl font-bold text-gray-900">
-
-                    {actionScope === 'all' 
-
-                      ? 'Delete All Auctions' 
-
-                      : actionScope === 'selected' 
-
-                        ? `Delete ${selectedIds.size} Auctions`
-
-                        : 'Delete Auction'}
-
-                  </h2>
-
-                  <p className="text-gray-500 text-sm">Select deletion method</p>
-
-                </div>
-
-              </div>
-
-  
-
-              {error && (
-
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-
-                  {error}
-
-                </div>
-
+            <div className="p-3 bg-white/20 rounded-xl">
+              <Timer className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm">Total Bids</p>
+
+              <p className="text-3xl font-bold mt-1">
+                {stats.totalBids.toLocaleString()}
+              </p>
+            </div>
+
+            <div className="p-3 bg-white/20 rounded-xl">
+              <Gavel className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm">Last Update</p>
+
+              <p className="text-lg font-bold mt-1">
+                {lastUpdate.toLocaleTimeString()}
+              </p>
+            </div>
+
+            <button
+              onClick={refreshData}
+              disabled={isRefreshing}
+              className="p-3 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+            >
+              <RefreshCw
+                className={`w-6 h-6 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters & Actions */}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full lg:w-auto">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+
+              <input
+                type="text"
+                placeholder="Search by vehicle, brand, seller..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              />
+            </div>
+
+            <div className="flex gap-2 flex-wrap items-center">
+              {(["all", "live", "scheduled", "ended"] as const).map(
+                (status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilter(status)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      filter === status
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {status === "live" && (
+                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
+                    )}
+
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </button>
+                ),
               )}
-
-  
-
-              <div className="mb-6 space-y-4">
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-2">
-                    <strong>Hard Delete</strong> will <span className="text-red-600 font-bold">permanently remove</span> the auction data.
-                  </p>
-
-                  <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
-                    <li>Removes auction listing</li>
-                    <li>Deletes all associated bids and photos</li>
-                    <li>This action cannot be undone</li>
-                  </ul>
-                  
-                  {actionScope === 'all' && (
-                     <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
-                       WARNING: You are about to wipe the entire auction database!
-                     </p>
-                  )}
-                </div>
-              </div>
-
-  
-
-              <div className="flex gap-3">
-
-                <button
-
-                  onClick={closeModal}
-
-                  disabled={loading}
-
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
-
-                >
-
-                  Cancel
-
-                </button>
-
-                <button
-                  onClick={handleExecuteDelete}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 bg-red-600 hover:bg-red-700"
-                >
-                  {loading ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      Confirm Delete
-                    </>
-                  )}
-                </button>
-
-              </div>
-
             </div>
-
           </div>
 
-        )}
-
-      </>
-
-    )
-
-  }
-
-  
-
-    // Auction Detail Modal Component
-
-  
-
-    function AuctionDetailModal({
-
-  
-
-      auction,
-
-  
-
-      bids,
-
-  
-
-      onClose,
-
-  
-
-      getVehicleName,
-
-  
-
-      getPrimaryPhoto,
-
-  
-
-      getTimeRemaining,
-
-  
-
-      getInitials,
-
-  
-
-    }: {
-
-  
-
-      auction: Auction
-
-  
-
-      bids: Bid[]
-
-  
-
-      onClose: () => void
-
-  
-
-      getVehicleName: (a: Auction) => string
-
-  
-
-      getPrimaryPhoto: (p: Array<{ photo_url: string; is_primary: boolean }>) => string | undefined
-
-  
-
-      getTimeRemaining: (t: string | null) => { text: string; urgent: boolean; ended: boolean }
-
-  
-
-      getInitials: (n: string | null, e: string) => string
-
-  
-
-    }) {
-
-  
-
-      const timeInfo = getTimeRemaining(auction.end_time)
-
-  
-
-      const isLive = auction.auction_statuses?.status_name === 'live'
-
-  
-
-      const vehicle = auction.auction_vehicles
-
-  
-
-  
-
-  
-
-      // Find winner if ended
-
-  
-
-      const winner = bids.length > 0 ? bids[0] : null
-
-  
-
-      const isEnded = timeInfo.ended || auction.auction_statuses?.status_name === 'ended'
-
-  
-
-  
-
-  
-
-            // Group photos by category
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            type PhotoCategory = 'front' | 'rear' | 'side' | 'interior' | 'engine' | 'other' | 'exterior' | 'damage' | 'documents'
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            const photos = auction.auction_photos || []
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            const photosByCategory = photos.reduce((acc, photo) => {
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                const cat = (photo.category || 'other').toLowerCase() as PhotoCategory
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                if (!acc[cat]) acc[cat] = []
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                acc[cat].push(photo)
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                return acc
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            }, {} as Record<PhotoCategory, typeof photos>)
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            const categories: { key: PhotoCategory; label: string }[] = [
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'front', label: 'Front' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'rear', label: 'Rear' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'side', label: 'Side' },
-
-  
-
-  
-
-  
-
-                
-
-  
-
-  
-
-  
-
-                { key: 'exterior', label: 'Exterior' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'interior', label: 'Interior' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'engine', label: 'Engine' },
-
-  
-
-  
-
-  
-
-                
-
-  
-
-  
-
-  
-
-                { key: 'damage', label: 'Damage' },
-
-  
-
-  
-
-  
-
-                
-
-  
-
-  
-
-  
-
-                { key: 'documents', label: 'Documents' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-                { key: 'other', label: 'Other' },
-
-  
-
-  
-
-  
-
-        
-
-  
-
-  
-
-  
-
-            ]
-
-  
-
-  
-
-  
-
-      return (
-
-  
-
-        <div className="fixed inset-0 bg-white z-[60] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-
-  
-
-          {/* Header Bar */}
-
-  
-
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm z-10">
-
-  
-
-            <div className="flex items-center gap-4">
-
-  
-
+          <div className="flex gap-2 items-center ml-auto shrink-0">
+            <button
+              onClick={toggleSelectionMode}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isSelectionEnabled
+                  ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              title={
+                isSelectionEnabled ? "Disable Selection" : "Enable Selection"
+              }
+            >
+              <CheckSquare className="w-4 h-4" />
+
+              {isSelectionEnabled ? "Enabled" : "Select"}
+            </button>
+
+            <button
+              onClick={() => setIsDeleteEnabled(!isDeleteEnabled)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isDeleteEnabled
+                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              title={isDeleteEnabled ? "Disable Deletion" : "Enable Deletion"}
+            >
+              <Shield className="w-4 h-4" />
+
+              {isDeleteEnabled ? "Enabled" : "Delete"}
+            </button>
+
+            {isDeleteEnabled && (
               <button
-
-  
-
-                onClick={onClose}
-
-  
-
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-
-  
-
+                onClick={() => openDeleteModal(null, "all")}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors animate-in fade-in"
+                title="Delete All Auctions"
               >
+                <Trash2 className="w-4 h-4" />
+                Delete All
+              </button>
+            )}
+          </div>
+        </div>
 
-  
+        {/* Bulk Selection Bar */}
 
-                <ChevronRight className="w-6 h-6 rotate-180" />
+        {isSelectionEnabled && selectedIds.size > 0 && (
+          <div className="mt-4 flex items-center justify-between bg-purple-50 p-3 rounded-lg border border-purple-100 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-purple-900 font-medium">
+              <CheckSquare className="w-5 h-5 text-purple-600" />
+              {selectedIds.size} auction{selectedIds.size > 1 ? "s" : ""}{" "}
+              selected
+            </div>
 
-  
-
+            <div className="flex gap-2">
+              {/* Bulk Activate/Deactivate */}
+              <button
+                onClick={() => handleBulkActivate(true)}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+              >
+                Activate
+              </button>
+              <button
+                onClick={() => handleBulkActivate(false)}
+                className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Deactivate
               </button>
 
-  
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
 
-              <div>
-
-  
-
-                 <h1 className="text-xl font-bold text-gray-900">{getVehicleName(auction)}</h1>
-
-  
-
-                 <div className="flex items-center gap-2 text-sm text-gray-500">
-
-  
-
-                    <span className="font-medium">ID: {auction.id.slice(0, 8)}</span>
-
-  
-
-                    <span>â€¢</span>
-
-  
-
-                    <span className="flex items-center gap-1">
-
-  
-
-                       <Users className="w-4 h-4" /> {auction.users?.full_name || auction.users?.email}
-
-  
-
-                    </span>
-
-  
-
-                 </div>
-
-  
-
-              </div>
-
-  
-
+              {isDeleteEnabled && (
+                <button
+                  onClick={() => openDeleteModal(null, "selected")}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors shadow-sm animate-in fade-in"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Selected
+                </button>
+              )}
             </div>
+          </div>
+        )}
 
-  
+        {/* Select All Checkbox */}
 
-            <div className="flex items-center gap-4">
+        {isSelectionEnabled && (
+          <div className="mt-4 flex items-center gap-2 animate-in fade-in">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+            >
+              {selectedIds.size === filteredAuctions.length &&
+              filteredAuctions.length > 0 ? (
+                <CheckSquare className="w-4 h-4 text-purple-600" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              Select All{" "}
+              {filteredAuctions.length > 0 && `(${filteredAuctions.length})`}
+            </button>
+          </div>
+        )}
+      </div>
 
-  
+      {/* Auction Cards Grid */}
 
-               {isEnded ? (
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredAuctions.length === 0 ? (
+          <div className="col-span-full bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <Car className="w-16 h-16 text-gray-300 mx-auto mb-4" />
 
-  
+            <p className="text-gray-500 text-lg">No auctions found</p>
+          </div>
+        ) : (
+          filteredAuctions.map((auction) => {
+            const timeInfo = getTimeRemaining(auction.end_time);
 
-                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-bold border border-gray-200">
+            const highestBidder = getHighestBidder(auction.id);
 
-  
+            const auctionBids = getAuctionBids(auction.id);
 
-                   <span className="w-2 h-2 bg-red-500 rounded-full" />
+            const isLive = auction.auction_statuses?.status_name === "live";
 
-  
+            return (
+              <div
+                key={auction.id}
+                className={`group relative bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-xl ${
+                  !auction.is_active ? "opacity-75 bg-gray-50" : ""
+                } ${
+                  isLive ? "border-green-400" : "border-gray-200"
+                } ${timeInfo.urgent && isLive ? "ring-2 ring-red-400 ring-opacity-50" : ""} ${
+                  selectedIds.has(auction.id)
+                    ? "ring-2 ring-purple-500 border-purple-500"
+                    : ""
+                }`}
+              >
+                {/* Card Actions */}
 
-                   AUCTION ENDED
+                <div className="absolute top-3 right-3 z-20 flex gap-2">
+                  {isSelectionEnabled && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-  
+                        toggleSelectAuction(auction.id);
+                      }}
+                      className="p-1 bg-white/80 rounded-full hover:bg-white transition-colors shadow-sm animate-in fade-in"
+                    >
+                      {selectedIds.has(auction.id) ? (
+                        <CheckSquare className="w-6 h-6 text-purple-600" />
+                      ) : (
+                        <Square className="w-6 h-6 text-gray-500 hover:text-purple-600" />
+                      )}
+                    </button>
+                  )}
 
-                 </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleSingleActive(auction.id, auction.is_active);
+                    }}
+                    className={`p-1 bg-white/80 rounded-full hover:bg-gray-100 transition-colors shadow-sm animate-in fade-in ${!auction.is_active ? "text-red-500" : "text-green-500"}`}
+                    title={auction.is_active ? "Deactivate" : "Activate"}
+                  >
+                    <Shield className="w-6 h-6" />
+                  </button>
 
-  
+                  {isDeleteEnabled && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-               ) : isLive ? (
+                        openDeleteModal(auction, "single");
+                      }}
+                      className="p-1 bg-white/80 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors shadow-sm animate-in fade-in"
+                      title="Delete Auction"
+                    >
+                      <Trash2 className="w-6 h-6" />
+                    </button>
+                  )}
+                </div>
 
-  
+                {/* Clickable Area for Details */}
 
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
+                <div
+                  onClick={() => setSelectedAuction(auction)}
+                  className="cursor-pointer"
+                >
+                  {/* Cover Photo */}
 
-  
+                  <div className="relative aspect-[16/9] bg-gray-100">
+                    {getPrimaryPhoto(auction.auction_photos) ? (
+                      <img
+                        src={getPrimaryPhoto(auction.auction_photos)}
+                        alt={getVehicleName(auction)}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Car className="w-20 h-20 text-gray-300" />
+                      </div>
+                    )}
 
-                    <span className="w-2 h-2 bg-green-500 rounded-full" />
+                    {/* Status Badge Overlay */}
 
-  
+                    <div className="absolute top-3 left-3 z-10 space-y-1">
+                      {!auction.is_active && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-medium mr-2">
+                          INACTIVE
+                        </span>
+                      )}
 
-                    LIVE AUCTION
+                      {isLive && timeInfo.ended ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-medium">
+                          ENDED
+                        </span>
+                      ) : isLive ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium">
+                          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                          LIVE
+                        </span>
+                      ) : (
+                        <StatusBadge
+                          status={
+                            auction.auction_statuses?.status_name || "draft"
+                          }
+                        />
+                      )}
+                    </div>
 
-  
+                    {/* Time Remaining Overlay */}
 
+                    {isLive && (
+                      <div
+                        className={`absolute top-12 right-3 px-3 py-1 rounded-full text-sm font-bold z-10 ${
+                          timeInfo.ended
+                            ? "bg-gray-800 text-white"
+                            : timeInfo.urgent
+                              ? "bg-red-500 text-white animate-pulse"
+                              : "bg-black/70 text-white"
+                        }`}
+                      >
+                        <Clock className="w-4 h-4 inline mr-1" />
+
+                        {timeInfo.text === "Ended"
+                          ? "Auction Ended"
+                          : timeInfo.text}
+                      </div>
+                    )}
+
+                    {/* Bid Count Overlay */}
+
+                    <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 text-white rounded-full text-sm font-medium z-10">
+                      <Gavel className="w-4 h-4 inline mr-1" />
+                      {auction.total_bids} bids
+                    </div>
+
+                    {/* Featured Badge */}
+
+                    {auction.is_featured && (
+                      <div className="absolute bottom-3 left-3 px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-medium z-10">
+                        <Zap className="w-4 h-4 inline mr-1" />
+                        Featured
+                      </div>
+                    )}
                   </div>
 
-  
+                  {/* Content */}
 
-               ) : (
+                  <div className="p-4">
+                    <h3 className="font-bold text-gray-900 text-lg truncate">
+                      {getVehicleName(auction)}
+                    </h3>
 
-  
+                    <p className="text-sm text-gray-500 mt-1">
+                      Seller: {auction.users?.full_name || auction.users?.email}
+                    </p>
 
-                 <StatusBadge status={auction.auction_statuses?.status_name || 'draft'} />
+                    {/* Price Section */}
 
-  
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase">
+                            Current Bid
+                          </p>
 
-               )}
+                          <p className="text-2xl font-bold text-purple-600">
+                            ₱{auction.current_price?.toLocaleString()}
+                          </p>
+                        </div>
 
-  
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500 uppercase">
+                            Starting
+                          </p>
 
-               <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border ${
+                          <p className="text-sm text-gray-600">
+                            ₱{auction.starting_price?.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-  
+                    {/* Highest Bidder */}
 
-                  isEnded
+                    {highestBidder && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            {(() => {
+                              const highestBidderAvatarSrc = highestBidder.users?.profile_photo_url || highestBidder.users?.profile_image_url;
+                              return highestBidderAvatarSrc ? (
+                              <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-green-400">
+                                <Image
+                                  src={highestBidderAvatarSrc}
+                                  alt="Bidder"
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                />
+                              </div>
+                              ) : (
+                              <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center border-2 border-green-400">
+                                <span className="text-sm font-bold text-green-700">
+                                  {getInitials(
+                                    highestBidder.users?.full_name || null,
+                                    highestBidder.users?.email || "U",
+                                  )}
+                                </span>
+                              </div>
+                              );
+                            })()}
 
-  
+                            <Trophy className="absolute -bottom-1 -right-1 w-4 h-4 text-yellow-500" />
+                          </div>
 
-                    ? 'bg-gray-100 border-gray-200 text-gray-600'
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-green-600 font-medium uppercase">
+                              Highest Bidder
+                            </p>
 
-  
+                            <p className="font-semibold text-gray-900 truncate">
+                              {highestBidder.users?.full_name ||
+                                highestBidder.users?.email}
+                            </p>
+                          </div>
 
-                    : timeInfo.urgent && isLive
+                          <div className="text-right">
+                            <p className="font-bold text-green-600">
+                              ₱{highestBidder.bid_amount.toLocaleString()}
+                            </p>
 
-  
+                            {highestBidder.is_auto_bid && (
+                              <span className="text-xs text-gray-500">
+                                Auto-bid
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                      ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
+                    {/* Stats Row */}
 
-  
+                    <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-4 h-4" />
+                        {auction.view_count} views
+                      </span>
 
-                      : 'bg-gray-50 border-gray-200 text-gray-700'
+                      <span className="flex items-center gap-1">
+                        <Users className="w-4 h-4" />
+                        {auctionBids.length} bidders
+                      </span>
 
-  
+                      <span className="flex items-center gap-1 text-purple-600">
+                        View Details
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
-               }`}>
+      {/* Auction Detail Modal */}
+      {selectedAuction && (
+        <AuctionDetailModal
+          auction={selectedAuction}
+          bids={getAuctionBids(selectedAuction.id)}
+          onClose={closeAuctionDetail}
+          // onClose={() => setSelectedAuction(null)}
+          getVehicleName={getVehicleName}
+          getPrimaryPhoto={getPrimaryPhoto}
+          getTimeRemaining={getTimeRemaining}
+          getInitials={getInitials}
+        />
+      )}
 
-  
+      {/* Delete Confirmation Modal */}
+      {modalMode === "delete" && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
 
-                  <Clock className="w-5 h-5" />
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {actionScope === "all"
+                    ? "Delete All Auctions"
+                    : actionScope === "selected"
+                      ? `Delete ${selectedIds.size} Auctions`
+                      : "Delete Auction"}
+                </h2>
 
-  
-
-                  {isEnded ? 'Ended' : `${timeInfo.text} remaining`}
-
-  
-
-               </div>
-
-  
-
+                <p className="text-gray-500 text-sm">Select deletion method</p>
+              </div>
             </div>
 
-  
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
 
+            <div className="mb-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <strong>Hard Delete</strong> will{" "}
+                  <span className="text-red-600 font-bold">
+                    permanently remove
+                  </span>{" "}
+                  the auction data.
+                </p>
+
+                <ul className="text-xs text-red-500 list-disc list-inside mt-2 space-y-1">
+                  <li>Removes auction listing</li>
+                  <li>Deletes all associated bids and photos</li>
+                  <li>This action cannot be undone</li>
+                </ul>
+
+                {actionScope === "all" && (
+                  <p className="mt-3 text-sm font-bold text-red-600 border-t border-red-200 pt-2">
+                    WARNING: You are about to wipe the entire auction database!
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeModal}
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleExecuteDelete}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 bg-red-600 hover:bg-red-700"
+              >
+                {loading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Confirm Delete
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+    </>
+  );
+}
 
-  
+// Auction Detail Modal Component
 
-  
+function AuctionDetailModal({
+  auction,
 
-  
+  bids,
 
-          {/* Content */}
+  onClose,
 
-  
+  getVehicleName,
 
-          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+  getPrimaryPhoto,
 
-  
+  getTimeRemaining,
 
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+  getInitials,
+}: {
+  auction: Auction;
 
-  
+  bids: Bid[];
 
-                {/* Left Column: Media & Vehicle Info */}
+  onClose: () => void;
 
-  
+  getVehicleName: (a: Auction) => string;
 
-                <div className="lg:col-span-2 space-y-6">
+  getPrimaryPhoto: (
+    p: Array<{ photo_url: string; is_primary: boolean }>,
+  ) => string | undefined;
 
-  
+  getTimeRemaining: (t: string | null) => {
+    text: string;
+    urgent: boolean;
+    ended: boolean;
+  };
 
-                   {/* Photo Grid (Categorized) */}
+  getInitials: (n: string | null, e: string) => string;
+}) {
+  const timeInfo = getTimeRemaining(auction.end_time);
 
-  
+  const isLive = auction.auction_statuses?.status_name === "live";
 
-                   <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+  const vehicle = auction.auction_vehicles;
 
-  
+  // Find winner if ended
 
+  const winner = bids.length > 0 ? bids[0] : null;
+
+  const isEnded =
+    timeInfo.ended || auction.auction_statuses?.status_name === "ended";
+
+  // Group photos by category
+
+  type PhotoCategory =
+    | "front"
+    | "rear"
+    | "side"
+    | "interior"
+    | "engine"
+    | "other"
+    | "exterior"
+    | "damage"
+    | "documents";
+
+  const photos = auction.auction_photos || [];
+
+  const photosByCategory = photos.reduce(
+    (acc, photo) => {
+      const cat = (photo.category || "other").toLowerCase() as PhotoCategory;
+
+      if (!acc[cat]) acc[cat] = [];
+
+      acc[cat].push(photo);
+
+      return acc;
+    },
+    {} as Record<PhotoCategory, typeof photos>,
+  );
+
+  const categories: { key: PhotoCategory; label: string }[] = [
+    { key: "front", label: "Front" },
+
+    { key: "rear", label: "Rear" },
+
+    { key: "side", label: "Side" },
+
+    { key: "exterior", label: "Exterior" },
+
+    { key: "interior", label: "Interior" },
+
+    { key: "engine", label: "Engine" },
+
+    { key: "damage", label: "Damage" },
+
+    { key: "documents", label: "Documents" },
+
+    { key: "other", label: "Other" },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-white z-[60] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+      {/* Header Bar */}
+
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shadow-sm z-10">
+        <div className="flex items-center gap-4">
+          <button
+            // href={`/admin/auctions?viewAuction=${listing.id}`}
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+          >
+            <ChevronRight className="w-6 h-6 rotate-180" />
+          </button>
+
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">
+              {getVehicleName(auction)}
+            </h1>
+
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="font-medium">ID: {auction.id.slice(0, 8)}</span>
+
+              <span>â€¢</span>
+
+              <span className="flex items-center gap-1">
+                <Users className="w-4 h-4" />{" "}
+                {auction.users?.full_name || auction.users?.email}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {isEnded ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-bold border border-gray-200">
+              <span className="w-2 h-2 bg-red-500 rounded-full" />
+              AUCTION ENDED
+            </div>
+          ) : isLive ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-bold animate-pulse">
+              <span className="w-2 h-2 bg-green-500 rounded-full" />
+              LIVE AUCTION
+            </div>
+          ) : (
+            <StatusBadge
+              status={auction.auction_statuses?.status_name || "draft"}
+            />
+          )}
+
+          <div
+            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 border ${
+              isEnded
+                ? "bg-gray-100 border-gray-200 text-gray-600"
+                : timeInfo.urgent && isLive
+                  ? "bg-red-50 border-red-200 text-red-600 animate-pulse"
+                  : "bg-gray-50 border-gray-200 text-gray-700"
+            }`}
+          >
+            <Clock className="w-5 h-5" />
+
+            {isEnded ? "Ended" : `${timeInfo.text} remaining`}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+
+      <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          {/* Left Column: Media & Vehicle Info */}
+
+          <div className="lg:col-span-2 space-y-6">
+            {/* Photo Grid (Categorized) */}
+
+            <Link
+              key={auction.id as string}
+              //  key={listing.id as string}
+              href={`/admin/listings/${auction.id}`}
+              className="block bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-purple-100 rounded-lg transition-colors">
+                    <Eye className="w-5 h-5 text-purple-700" />
+                  </div>
+                  Vehicle Details
+                </div>
+                <ArrowRight className="w-6 h-6 text-purple-700 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+            {/* <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                       <h3 className="font-semibold mb-4 text-gray-900 flex items-center gap-2">
-
-  
-
                          <Eye className="w-5 h-5 text-gray-400" />
-
-  
-
                          Vehicle Photos
-
-  
-
                       </h3>
-
-  
-
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                          {photos.length > 0 ? (
                            categories.filter(cat => photosByCategory[cat.key]?.length > 0).map((cat) => (
@@ -2374,584 +1309,219 @@ export default function AuctionsClient({ initialAuctions, stats, initialBids }: 
                             </div>
                          )}
                       </div>
-
-  
-
-                   </div>
-
-  
-
-  
-
-  
-
-                   {/* Vehicle Details */}
-
-  
-
-                   <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-
-  
-
-                      <h3 className="font-semibold mb-4 text-gray-900">Vehicle Specifications</h3>
-
-  
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8">
-
-  
-
-                         {[
-
-  
-
-                            { label: 'Make', value: vehicle?.brand },
-
-  
-
-                            { label: 'Model', value: vehicle?.model },
-
-  
-
-                            { label: 'Variant', value: vehicle?.variant },
-
-  
-
-                            { label: 'Year', value: vehicle?.year },
-
-  
-
-                            { label: 'Mileage', value: vehicle?.mileage ? `${vehicle.mileage.toLocaleString()} km` : null },
-
-  
-
-                            { label: 'Condition', value: vehicle?.condition },
-
-  
-
-                            { label: 'Color', value: vehicle?.exterior_color },
-
-  
-
-                            { label: 'Transmission', value: vehicle?.transmission },
-
-  
-
-                            { label: 'Fuel', value: vehicle?.fuel_type },
-
-  
-
-                         ].map((item) => (
-
-  
-
-                            <div key={item.label}>
-
-  
-
-                               <p className="text-xs text-gray-500 uppercase">{item.label}</p>
-
-  
-
-                               <p className="font-medium text-gray-900">{item.value || '-'}</p>
-
-  
-
-                            </div>
-
-  
-
-                         ))}
-
-  
-
-                      </div>
-
-  
-
-                   </div>
-
-  
-
-  
-
-  
-
-                   {/* Description */}
-
-  
-
-                   {auction.description && (
-
-  
-
-                      <div className="rounded-xl border shadow-sm p-6 bg-white border-gray-200">
-
-  
-
-                         <h3 className="font-semibold mb-4 text-gray-900">Description</h3>
-
-  
-
-                         <p className="whitespace-pre-wrap leading-relaxed text-gray-600">{auction.description}</p>
-
-  
-
-                      </div>
-
-  
-
-                   )}
-
-  
-
-                </div>
-
-  
-
-  
-
-  
-
-                {/* Right Column: Bid History & Admin Actions */}
-
-  
-
-                <div className="space-y-6">
-
-  
-
-                   {/* Bid History */}
-
-  
-
-                   <div className="rounded-xl border shadow-sm flex flex-col h-[600px] bg-white border-gray-200">
-
-  
-
-                      <div className="px-6 py-4 border-b flex items-center justify-between border-gray-100 bg-gray-50/50">
-
-  
-
-                         <h3 className="font-semibold flex items-center gap-2 text-gray-900">
-
-  
-
-                            <TrendingUp className="w-5 h-5 text-purple-600" />
-
-  
-
-                            Bid History
-
-  
-
-                         </h3>
-
-  
-
-                         <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-
-  
-
-                            {bids.length} Bids
-
-  
-
-                         </span>
-
-  
-
-                      </div>
-
-  
-
-  
-
-  
-
-                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-
-  
-
-                         {bids.length === 0 ? (
-
-  
-
-                           <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-500">
-
-  
-
-                              <Gavel className="w-12 h-12 text-gray-300 mb-3" />
-
-  
-
-                              <p>No bids placed</p>
-
-  
-
-                           </div>
-
-  
-
-                         ) : (
-
-  
-
-                           bids.map((bid, index) => (
-
-  
-
-                              <div
-
-  
-
-                                key={bid.id}
-
-  
-
-                                className={`p-4 rounded-xl transition-all ${
-
-  
-
-                                  index === 0
-
-  
-
-                                    ? isEnded
-
-  
-
-                                       ? 'bg-yellow-50 border border-yellow-200 shadow-sm'
-
-  
-
-                                       : 'bg-green-50 border border-green-200 shadow-sm'
-
-  
-
-                                    : 'bg-white border border-gray-100 hover:border-gray-300'
-
-  
-
-                                }`}
-
-  
-
-                              >
-
-  
-
-                                <div className="flex justify-between items-start mb-2">
-
-  
-
-                                   <div className="flex items-center gap-3">
-
-  
-
-                                      <div className="relative">
-
-  
-
-                                         {bid.users?.profile_image_url ? (
-
-  
-
-                                           <img
-
-  
-
-                                             src={bid.users.profile_image_url}
-
-  
-
-                                             alt="Bidder"
-
-  
-
-                                             className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
-
-  
-
-                                           />
-
-  
-
-                                         ) : (
-
-  
-
-                                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm ${
-
-  
-
-                                             index === 0
-
-  
-
-                                                ? isEnded ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-
-  
-
-                                                : 'bg-gray-100 text-gray-600'
-
-  
-
-                                           }`}>
-
-  
-
-                                             <span className="font-bold">
-
-  
-
-                                               {getInitials(bid.users?.full_name || null, bid.users?.email || 'U')}
-
-  
-
-                                             </span>
-
-  
-
-                                           </div>
-
-  
-
-                                         )}
-
-  
-
-                                         {index === 0 && (
-
-  
-
-                                            <div className="absolute -top-2 -right-2 bg-yellow-400 p-1 rounded-full border-2 border-white shadow-sm">
-
-  
-
-                                               <Trophy className="w-3 h-3 text-white fill-white" />       
-
-  
-
-                                            </div>
-
-  
-
-                                         )}
-
-  
-
-                                      </div>
-
-  
-
-                                      <div>
-
-  
-
-                                         <p className="font-bold text-sm text-gray-900">
-
-  
-
-                                            {bid.users?.full_name || bid.users?.email}
-
-  
-
-                                         </p>
-
-  
-
-                                         <p className="text-xs text-gray-500">
-
-  
-
-                                            {new Date(bid.created_at).toLocaleString()}
-
-  
-
-                                         </p>
-
-  
-
-                                      </div>
-
-  
-
-                                   </div>
-
-  
-
-                                </div>
-
-  
-
-  
-
-  
-
-                                <div className="flex items-center justify-between mt-2 pl-13">
-
-  
-
-                                   <span className={`text-lg font-bold ${
-
-  
-
-                                      index === 0
-
-  
-
-                                         ? isEnded ? 'text-yellow-600' : 'text-green-600'
-
-  
-
-                                         : 'text-gray-700'
-
-  
-
-                                   }`}>
-
-  
-
-                                      ₱{bid.bid_amount.toLocaleString()}
-
-  
-
-                                   </span>
-
-  
-
-                                   {bid.is_auto_bid && (
-
-  
-
-                                      <span className="text-xs px-2 py-1 rounded-md flex items-center gap-1 bg-gray-100 text-gray-600">
-
-  
-
-                                         <Zap className="w-3 h-3" /> Auto
-
-  
-
-                                      </span>
-
-  
-
-                                   )}
-
-  
-
-                                </div>
-
-  
-
-                              </div>
-
-  
-
-                           ))
-
-  
-
-                         )}
-
-  
-
-                      </div>
-
-  
-
-                   </div>
-
-  
-
-  
-
-  
-
-                   {/* Additional Metadata Card */}
-
-  
-
-                   <div className="rounded-xl border shadow-sm p-6 space-y-4 bg-white border-gray-200">   
-
-  
-
-                      <h3 className="font-semibold mb-2 text-gray-900">Auction Settings</h3>
-
-  
-
-                      <div className="flex justify-between py-2 border-b border-gray-100">
-
-  
-
-                         <span className="text-sm text-gray-500">Deposit Required</span>
-
-  
-
-                         <span className="font-medium text-gray-900">₱{auction.deposit_amount?.toLocaleString()}</span>
-
-  
-
-                      </div>
-
-  
-
-                      <div className="flex justify-between py-2 border-b border-gray-100">
-
-  
-
-                         <span className="text-sm text-gray-500">Bid Increment</span>
-
-  
-
-                         <span className="font-medium text-gray-900">₱{auction.bid_increment?.toLocaleString()}</span>
-
-  
-
-                      </div>
-
-  
-
-                      <div className="flex justify-between py-2 border-b border-gray-100">
-
-  
-
-                         <span className="text-sm text-gray-500">Reserve Price</span>
-
-  
-
-                         <span className="font-medium text-gray-900">{auction.reserve_price ? `₱${auction.reserve_price.toLocaleString()}` : 'None'}</span>
-
-  
-
-                      </div>
-
-  
-
-                   </div>
-
-  
-
-                </div>
-
-  
-
+                   </div> */}
+
+            {/* Vehicle Details */}
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="font-semibold mb-4 text-gray-900">
+                Vehicle Specifications
+              </h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8">
+                {[
+                  { label: "Make", value: vehicle?.brand },
+
+                  { label: "Model", value: vehicle?.model },
+
+                  { label: "Variant", value: vehicle?.variant },
+
+                  { label: "Year", value: vehicle?.year },
+
+                  {
+                    label: "Mileage",
+                    value: vehicle?.mileage
+                      ? `${vehicle.mileage.toLocaleString()} km`
+                      : null,
+                  },
+
+                  { label: "Condition", value: vehicle?.condition },
+
+                  { label: "Color", value: vehicle?.exterior_color },
+
+                  { label: "Transmission", value: vehicle?.transmission },
+
+                  { label: "Fuel", value: vehicle?.fuel_type },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <p className="text-xs text-gray-500 uppercase">
+                      {item.label}
+                    </p>
+
+                    <p className="font-medium text-gray-900">
+                      {item.value || "-"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Description */}
+
+            {auction.description && (
+              <div className="rounded-xl border shadow-sm p-6 bg-white border-gray-200">
+                <h3 className="font-semibold mb-4 text-gray-900">
+                  Description
+                </h3>
+
+                <p className="whitespace-pre-wrap leading-relaxed text-gray-600">
+                  {auction.description}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Bid History & Admin Actions */}
+
+          <div className="space-y-6">
+            {/* Bid History */}
+
+            <div className="rounded-xl border shadow-sm flex flex-col h-[600px] bg-white border-gray-200">
+              <div className="px-6 py-4 border-b flex items-center justify-between border-gray-100 bg-gray-50/50">
+                <h3 className="font-semibold flex items-center gap-2 text-gray-900">
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                  Bid History
+                </h3>
+
+                <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                  {bids.length} Bids
+                </span>
               </div>
 
-  
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {bids.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-500">
+                    <Gavel className="w-12 h-12 text-gray-300 mb-3" />
 
-           </div>
+                    <p>No bids placed</p>
+                  </div>
+                ) : (
+                  bids.map((bid, index) => (
+                    <div
+                      key={bid.id}
+                      className={`p-4 rounded-xl transition-all ${
+                        index === 0
+                          ? isEnded
+                            ? "bg-yellow-50 border border-yellow-200 shadow-sm"
+                            : "bg-green-50 border border-green-200 shadow-sm"
+                          : "bg-white border border-gray-100 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            {(() => {
+                              const bidderAvatarSrc = bid.users?.profile_photo_url || bid.users?.profile_image_url;
+                              return bidderAvatarSrc ? (
+                              <div className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-white shadow-sm">
+                                <Image
+                                  src={bidderAvatarSrc}
+                                  alt="Bidder"
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                />
+                              </div>
+                              ) : (
+                              <div
+                                className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm ${
+                                  index === 0
+                                    ? isEnded
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
+                                <span className="font-bold">
+                                  {getInitials(
+                                    bid.users?.full_name || null,
+                                    bid.users?.email || "U",
+                                  )}
+                                </span>
+                              </div>
+                              );
+                            })()}
 
-  
+                            {index === 0 && (
+                              <div className="absolute -top-2 -right-2 bg-yellow-400 p-1 rounded-full border-2 border-white shadow-sm">
+                                <Trophy className="w-3 h-3 text-white fill-white" />
+                              </div>
+                            )}
+                          </div>
 
+                          <div>
+                            <p className="font-bold text-sm text-gray-900">
+                              {bid.users?.full_name || bid.users?.email}
+                            </p>
+
+                            <p className="text-xs text-gray-500">
+                              {new Date(bid.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2 pl-13">
+                        <span
+                          className={`text-lg font-bold ${
+                            index === 0
+                              ? isEnded
+                                ? "text-yellow-600"
+                                : "text-green-600"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          ₱{bid.bid_amount.toLocaleString()}
+                        </span>
+
+                        {bid.is_auto_bid && (
+                          <span className="text-xs px-2 py-1 rounded-md flex items-center gap-1 bg-gray-100 text-gray-600">
+                            <Zap className="w-3 h-3" /> Auto
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Additional Metadata Card */}
+
+            <div className="rounded-xl border shadow-sm p-6 space-y-4 bg-white border-gray-200">
+              <h3 className="font-semibold mb-2 text-gray-900">
+                Auction Settings
+              </h3>
+
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-500">Deposit Required</span>
+
+                <span className="font-medium text-gray-900">
+                  ₱{auction.deposit_amount?.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-500">Bid Increment</span>
+
+                <span className="font-medium text-gray-900">
+                  ₱{auction.bid_increment?.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-500">Reserve Price</span>
+
+                <span className="font-medium text-gray-900">
+                  {auction.reserve_price
+                    ? `₱${auction.reserve_price.toLocaleString()}`
+                    : "None"}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-
-  
-
-      )
-
-  
-
-    }
-
+      </div>
+    </div>
+  );
+}

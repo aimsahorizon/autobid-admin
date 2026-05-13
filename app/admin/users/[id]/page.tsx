@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowLeft, Mail, Calendar, Shield, CheckCircle, XCircle, User } from 'lucide-react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
@@ -78,6 +79,19 @@ async function getUserListings(userId: string) {
   }))
 }
 
+function getInitials(name: string | null, email: string) {
+  if (name) {
+    return name
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  return email[0].toUpperCase()
+}
+
 export default async function UserDetailPage({ params }: PageProps) {
   const { id } = await params
   const [user, listings] = await Promise.all([getUser(id), getUserListings(id)])
@@ -117,10 +131,20 @@ export default async function UserDetailPage({ params }: PageProps) {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-700 font-bold text-xl">
-                  {user.full_name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
-                </span>
+              <div className="relative w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center overflow-hidden shrink-0">
+                {(user.profile_photo_url || user.profile_image_url) ? (
+                  <Image
+                    src={user.profile_photo_url || user.profile_image_url}
+                    alt={user.full_name || 'User'}
+                    fill
+                    className="object-cover"
+                    sizes="64px"
+                  />
+                ) : (
+                  <span className="text-purple-700 font-bold text-xl">
+                    {getInitials(user.full_name, user.email)}
+                  </span>
+                )}
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">{user.full_name || 'Unnamed User'}</h2>
@@ -130,7 +154,7 @@ export default async function UserDetailPage({ params }: PageProps) {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <InfoField icon={<Mail className="w-4 h-4" />} label="Email" value={user.email} />
+              <InfoField icon={<Mail className="w-4 h-4" />} label="Email" value={user.email} valueClassName="break-all" />
               <InfoField icon={<User className="w-4 h-4" />} label="First Name" value={user.first_name || '—'} />
               <InfoField icon={<User className="w-4 h-4" />} label="Last Name" value={user.last_name || '—'} />
               {user.middle_name && (
@@ -229,14 +253,24 @@ export default async function UserDetailPage({ params }: PageProps) {
   )
 }
 
-function InfoField({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoField({
+  icon,
+  label,
+  value,
+  valueClassName = '',
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  valueClassName?: string
+}) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-1.5 text-xs text-gray-500 uppercase tracking-wide mb-1">
         {icon}
         {label}
       </div>
-      <p className="text-sm text-gray-900">{value}</p>
+      <p className={`text-sm text-gray-900 ${valueClassName}`}>{value}</p>
     </div>
   )
 }
