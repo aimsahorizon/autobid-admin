@@ -175,7 +175,7 @@ export default function ListingDetailClient({ listing: rawListing, adminUserId }
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back to Listings</span>
+              <span className="font-medium">Back</span>
             </button>
             {listing.deed_of_sale_url && (
               <a

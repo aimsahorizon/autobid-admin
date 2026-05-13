@@ -199,12 +199,13 @@ export default function AdminActionPanel({ listing, adminUserId }: AdminActionPa
             </a>
 
             <a
-              href={`/admin/auctions/${listing.id}/bids`}
+              href={`/admin/auctions?viewAuction=${listing.id}`}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
             >
               <FileText className="w-4 h-4" />
               View Bid History
             </a>
+            
 
             <button
               onClick={() => {/* Implement audit log */}}

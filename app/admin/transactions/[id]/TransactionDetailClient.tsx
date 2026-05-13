@@ -21,6 +21,7 @@ import {
   Camera,
   Loader2,
 } from 'lucide-react'
+import Image from 'next/image'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { createClient } from '@/lib/supabase/client'
 
@@ -216,6 +217,11 @@ export default function TransactionDetailClient({
   }
 
   const rejectionPhotos = transaction.buyer_rejection_photos as string[] | null
+  const getUserAvatarSrc = (user: Record<string, unknown> | null) => {
+    const profilePhotoUrl = typeof user?.profile_photo_url === 'string' ? user.profile_photo_url : null
+    const profileImageUrl = typeof user?.profile_image_url === 'string' ? user.profile_image_url : null
+    return profilePhotoUrl || profileImageUrl
+  }
 
   return (
     <div className="space-y-6">
@@ -240,11 +246,15 @@ export default function TransactionDetailClient({
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row gap-6">
           {primaryPhoto ? (
-            <img
-              src={primaryPhoto}
-              alt={vehicleName}
-              className="w-full md:w-64 h-48 object-cover rounded-lg"
-            />
+            <div className="relative w-full md:w-64 h-48 rounded-lg overflow-hidden">
+              <Image
+                src={primaryPhoto}
+                alt={vehicleName}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 256px"
+              />
+            </div>
           ) : (
             <div className="w-full md:w-64 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
               <Car className="w-16 h-16 text-gray-300" />
@@ -296,12 +306,16 @@ export default function TransactionDetailClient({
             Seller
           </h3>
           <div className="flex items-center gap-4 mb-4">
-            {typeof seller?.profile_image_url === 'string' ? (
-              <img
-                src={seller.profile_image_url}
-                alt={String(seller?.full_name || 'Seller')}
-                className="w-16 h-16 rounded-full object-cover"
-              />
+            {getUserAvatarSrc(seller) ? (
+              <div className="relative w-16 h-16 rounded-full overflow-hidden">
+                <Image
+                  src={getUserAvatarSrc(seller)!}
+                  alt={String(seller?.full_name || 'Seller')}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
+              </div>
             ) : (
               <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center">
                 <User className="w-8 h-8 text-blue-600" />
@@ -340,12 +354,16 @@ export default function TransactionDetailClient({
             Buyer
           </h3>
           <div className="flex items-center gap-4 mb-4">
-            {typeof buyer?.profile_image_url === 'string' ? (
-              <img
-                src={buyer.profile_image_url}
-                alt={String(buyer?.full_name || 'Buyer')}
-                className="w-16 h-16 rounded-full object-cover"
-              />
+            {getUserAvatarSrc(buyer) ? (
+              <div className="relative w-16 h-16 rounded-full overflow-hidden">
+                <Image
+                  src={getUserAvatarSrc(buyer)!}
+                  alt={String(buyer?.full_name || 'Buyer')}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
+              </div>
             ) : (
               <div className="w-16 h-16 bg-green-200 rounded-full flex items-center justify-center">
                 <User className="w-8 h-8 text-green-600" />
@@ -409,7 +427,15 @@ export default function TransactionDetailClient({
                   <div className="flex gap-2 flex-wrap">
                     {rejectionPhotos.map((url, i) => (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={url} alt={`Evidence ${i + 1}`} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:opacity-75 transition-opacity" />
+                        <div className="relative w-24 h-24 overflow-hidden rounded-lg border border-gray-200 hover:opacity-75 transition-opacity">
+                          <Image
+                            src={url}
+                            alt={`Evidence ${i + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="96px"
+                          />
+                        </div>
                       </a>
                     ))}
                   </div>
