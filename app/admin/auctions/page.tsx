@@ -59,6 +59,24 @@ function transformBid<T extends Record<string, unknown>>(bid: T) {
   }
 }
 
+async function getBidderProfiles(bidderIds: string[]) {
+  if (bidderIds.length === 0) return []
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, profile_photo_url, profile_image_url')
+    .in('id', bidderIds)
+
+  if (error) {
+    console.error('Error fetching bidder profiles:', error)
+    return []
+  }
+
+  return data || []
+}
+
 async function getAuctions() {
   const supabase = await createClient()
 
@@ -84,7 +102,7 @@ async function getAuctions() {
       auction_categories (category_name, display_name),
       auction_vehicles (brand, model, variant, year, mileage, condition, exterior_color, transmission, fuel_type),
       auction_photos (id, photo_url, is_primary, category),
-      users!auctions_seller_id_fkey (id, full_name, email, profile_image_url)
+      users!auctions_seller_id_fkey (id, full_name, email, profile_photo_url, profile_image_url)
     `)
     .in('status_id', (
       await supabase.from('auction_statuses')
@@ -116,7 +134,7 @@ async function getBidsForAuctions(auctionIds: string[]) {
       is_auto_bid,
       created_at,
       bid_statuses (status_name, display_name),
-      users (id, full_name, email, profile_image_url)
+      users (id, full_name, email, profile_photo_url, profile_image_url)
     `)
     .in('auction_id', auctionIds)
     .order('bid_amount', { ascending: false })
@@ -126,7 +144,15 @@ async function getBidsForAuctions(auctionIds: string[]) {
     return []
   }
 
-  return (data || []).map(transformBid)
+  const transformedBids = (data || []).map(transformBid)
+  const bidderIds = Array.from(new Set(transformedBids.map((bid) => bid.bidder_id).filter(Boolean)))
+  const bidderProfiles = await getBidderProfiles(bidderIds)
+  const bidderProfileById = new Map(bidderProfiles.map((profile) => [profile.id, profile]))
+
+  return transformedBids.map((bid) => ({
+    ...bid,
+    users: bidderProfileById.get(bid.bidder_id) || bid.users,
+  }))
 }
 
 export default async function AuctionsPage() {
