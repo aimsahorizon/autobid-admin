@@ -5,7 +5,6 @@ import {
   useEffect,
   useCallback,
   useRef,
-  startTransition,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -169,20 +168,21 @@ export default function AuctionsClient({
   // Auto-open auction from query params (e.g., ?viewAuction=auctionId)
   useEffect(() => {
     const auctionIdToView = searchParams.get("viewAuction");
-    if (
-      auctionIdToView &&
-      auctionIdToView !== handledAuctionIdRef.current &&
-      auctions.length > 0
-    ) {
-      const auction = auctions.find((a) => a.id === auctionIdToView);
-      if (auction) {
-        handledAuctionIdRef.current = auctionIdToView;
-        startTransition(() => {
-          setSelectedAuction(auction);
-        });
-      }
+    if (!auctionIdToView || auctionIdToView === handledAuctionIdRef.current) return;
+
+    // Try to find the auction from current state first, then fallback to initial props
+    const auction = auctions.find((a) => a.id === auctionIdToView) ||
+      initialAuctions.find((a) => a.id === auctionIdToView);
+
+    if (auction) {
+      handledAuctionIdRef.current = auctionIdToView;
+      // Schedule opening and URL replace asynchronously so rendering is immediate
+      setTimeout(() => {
+        setSelectedAuction(auction);
+        router.replace('/admin/auctions');
+      }, 0);
     }
-  }, [searchParams, auctions]);
+  }, [searchParams, auctions, initialAuctions, router]);
 
   // Real-time countdown timer
   const [, setTick] = useState(0);
