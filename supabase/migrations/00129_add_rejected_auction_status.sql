@@ -1,7 +1,5 @@
 -- Add 'rejected' status to auction_statuses table
 -- Used when an admin rejects a listing during review (instead of cancelling)
--- 'rejected' = admin declined listing during review
--- 'cancelled' = seller-initiated or post-auction cancellation
 
 -- 1. Update CHECK constraint to include 'rejected'
 ALTER TABLE auction_statuses
@@ -27,10 +25,3 @@ ALTER TABLE auction_statuses
 INSERT INTO auction_statuses (status_name, display_name)
 VALUES ('rejected', 'Rejected')
 ON CONFLICT (status_name) DO NOTHING;
-
--- 3. Add rejection_reason column to auctions table
--- Displayed to the seller so they know why their listing was rejected
-ALTER TABLE auctions
-  ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-
-COMMENT ON COLUMN auctions.rejection_reason IS 'Reason provided by admin when rejecting a listing during review';
