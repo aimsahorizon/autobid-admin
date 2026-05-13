@@ -27,19 +27,19 @@ export async function getAllReports() {
     .from('transaction_reports')
     .select(`
       *,
-      reporter:reporter_id (
+      reporter:users!transaction_reports_reporter_id_fkey (
         id,
         full_name,
         email,
         username
       ),
-      reported_user:reported_user_id (
+      reported_user:users!transaction_reports_reported_user_id_fkey (
         id,
         full_name,
         email,
         username
       ),
-      transaction:transaction_id (
+      transaction:auction_transactions!transaction_reports_transaction_id_fkey (
         id,
         auction_id,
         agreed_price,
@@ -66,19 +66,19 @@ export async function getReportsByStatus(status: string) {
     .from('transaction_reports')
     .select(`
       *,
-      reporter:reporter_id (
+      reporter:users!transaction_reports_reporter_id_fkey (
         id,
         full_name,
         email,
         username
       ),
-      reported_user:reported_user_id (
+      reported_user:users!transaction_reports_reported_user_id_fkey (
         id,
         full_name,
         email,
         username
       ),
-      transaction:transaction_id (
+      transaction:auction_transactions!transaction_reports_transaction_id_fkey (
         id,
         auction_id,
         agreed_price,
@@ -106,7 +106,7 @@ export async function getReportById(reportId: string) {
     .from('transaction_reports')
     .select(`
       *,
-      reporter:reporter_id (
+      reporter:users!transaction_reports_reporter_id_fkey (
         id,
         full_name,
         email,
@@ -114,7 +114,7 @@ export async function getReportById(reportId: string) {
         profile_image_url,
         profile_photo_url
       ),
-      reported_user:reported_user_id (
+      reported_user:users!transaction_reports_reported_user_id_fkey (
         id,
         full_name,
         email,
@@ -122,7 +122,7 @@ export async function getReportById(reportId: string) {
         profile_image_url,
         profile_photo_url
       ),
-      transaction:transaction_id (
+      transaction:auction_transactions!transaction_reports_transaction_id_fkey (
         id,
         auction_id,
         agreed_price,
