@@ -8,3 +8,5 @@
 .env.*.local
 
 todo.md
+
+mig_*/

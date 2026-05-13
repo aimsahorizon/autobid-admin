@@ -4,6 +4,7 @@ export interface User {
   id: string
   email: string
   full_name: string | null
+  username: string | null
   profile_image_url: string | null
   profile_photo_url: string | null
   cover_photo_url: string | null
